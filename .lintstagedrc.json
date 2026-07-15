@@ -1,0 +1,6 @@
+{
+  "web/**/*.{ts,tsx}": [
+    "node web/node_modules/eslint/bin/eslint.js --config web/eslint.config.mjs --fix --no-warn-ignored"
+  ],
+  "contracts/**/*.sol": ["bash -c 'cd contracts && forge fmt'"]
+}
