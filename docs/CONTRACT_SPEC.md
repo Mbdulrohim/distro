@@ -192,9 +192,24 @@ Sets `reclaimed = true`, which blocks further execution — otherwise a chunk ex
 
 ## Open decisions — these change the contract, not the UI
 
-**O1 — Does "scheduled" guarantee a recipient anything?** With cancel-any-time-before-execution, a scheduled distribution is a _promise_, not an escrow guarantee. Correct for payroll (employers can cancel). Wrong for bounties/grants, where credible commitment is the point. An **`irrevocable` flag** set at creation (waiving `cancel`, keeping only post-grace `reclaim`) is cheap now and impossible to retrofit into an immutable clone. **Needs a decision before implementation.**
+**O1 — Does "scheduled" guarantee a recipient anything? — DECIDED (2026-07-16): no. Always cancellable.**
 
-**O2 — Who executes, and why?** Permissionless execution is only real if someone besides Distro is _motivated_. Today nobody is: no tip, no rebate, no MEV. The honest fallback is "the creator self-serves," which is fine — but then say that, rather than implying a keeper ecosystem. A small gas tip skimmed from escrow on execution would make third-party execution self-sustaining and genuinely remove Distro from the critical path. This is the difference between the property being architectural and aspirational. **Needs a decision before implementation.**
+A creator may `cancel()` and take a full refund at any point **while no chunk has executed** (gated on execution progress, not on `executeAfter` — see [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) C3, which is what closes the stranded-funds hole).
+
+No `irrevocable` flag ships in v1. The consequence is explicit and must be reflected in the product copy: **a scheduled distribution is a promise, not a guarantee.** It's the creator's money and plans change — correct for payroll, which is the primary use case. It also means Distro is _not_ currently suited to bounties/grants/prizes where credible commitment is the point; a recipient can never rely on a scheduled run happening.
+
+Adding irrevocability later requires a new `Distribution` implementation and a new audit. That's the accepted cost of keeping v1's audit surface small.
+
+**O2 — Who executes, and why? — DECIDED (2026-07-16): Distro keeper, with a creator/anyone fallback. No gas tip.**
+
+`executeChunk` stays **permissionless** (no caller check), but v1 ships **no economic incentive** to execute. In practice:
+
+- Distro operates a keeper that fires runs at `executeAfter`. This is the expected path.
+- If the keeper is down, the creator — or any third party willing to pay gas — can trigger the run themselves. The funds are never trapped and never require Distro's cooperation to move.
+
+**Say this accurately.** Permissionlessness here is a _safety net_, not a keeper ecosystem: nobody is paid to execute, so absent Distro, the realistic executor is the creator. That is a meaningfully weaker claim than "a keeper market will run it," and marketing must not imply otherwise. The property that survives scrutiny is: **no one can stop a funded distribution from executing, and no one but the creator can take the money back.**
+
+A gas tip from escrow remains the upgrade path if third-party execution ever needs to be self-sustaining. It's additive to a future implementation, not a v1 requirement — the keeper covers the common case and the fallback covers the tail.
 
 **O3 — Recurring (v2) shapes v1 today.** If recurring means one contract with N tranches, `Distribution` needs cycle state and v1 should reserve room. If it means N independent distributions from a saved template, v1 needs nothing. Deferring the _feature_ is right; deferring this _decision_ risks a v2 that cannot reuse v1's audited contract.
 
@@ -204,7 +219,7 @@ Sets `reclaimed = true`, which blocks further execution — otherwise a chunk ex
 
 ## Sequence before any Solidity
 
-1. Answer **O1** and **O2** — both are contract-shape decisions.
+1. ~~Answer **O1** and **O2**~~ — **done (2026-07-16)**: always cancellable; keeper + creator fallback, no tip.
 2. Freeze the payload encoding as a normative spec shared by contract and generator.
 3. Measure real Monad gas for a batch transfer → derive `MIN_GAS_PER_TRANSFER` and the default chunk size.
 4. Then write `Distribution` + `DistributionFactory` against the invariants above.

@@ -93,9 +93,9 @@ Ships alongside Phase 3 — these are what make an escrow-based scheduled run ob
 
 **Before Phase 3 (escrow) starts** — these change contract shape and cannot be retrofitted into an immutable clone:
 
-4. **O1 — irrevocable mode?** Cancel-any-time makes "scheduled" a promise, not a guarantee. Fine for payroll, wrong for bounties/grants.
-5. **O2 — execution incentive?** Permissionless execution is only real if a non-Distro party is motivated to execute. Either add a gas tip from escrow, or drop the claim and say "the creator self-serves".
-6. **O3 — recurring shape.** Deferring the _feature_ is right; deferring this _decision_ risks a v2 that cannot reuse v1's audited contract.
+4. ~~**O1 — irrevocable mode?**~~ **DECIDED 2026-07-16 — always cancellable, no irrevocable flag.** Consequence to carry into product copy: a scheduled distribution is a _promise, not a guarantee_, so Distro is not yet suited to bounties/grants where credible commitment is the point. Adding it later = new implementation + new audit.
+5. ~~**O2 — execution incentive?**~~ **DECIDED 2026-07-16 — Distro keeper + creator/anyone fallback, no gas tip.** Execution stays permissionless, but nobody is _paid_ to execute, so absent Distro the realistic executor is the creator. State it that way: permissionlessness is a safety net, not a keeper ecosystem. A gas tip is an additive upgrade path, not a v1 requirement.
+6. **O3 — recurring shape.** Still open. Deferring the _feature_ is right; deferring this _decision_ risks a v2 that cannot reuse v1's audited contract.
 
 **Product decisions with no deadline yet, but real consequences:**
 
