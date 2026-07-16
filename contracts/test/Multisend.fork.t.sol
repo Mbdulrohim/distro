@@ -120,6 +120,10 @@ contract MultisendForkTest is Test {
     }
 
     /// Sanity: a realistic payroll run fits one transaction on Monad.
+    ///
+    /// @dev Bounded by Monad's **transaction** gas limit (30M), not its block
+    /// limit (200M). The per-tx cap is the real constraint on batch size; an
+    /// earlier version asserted against 150M, a bound that does not exist.
     function test_fork_payrollScaleFitsOneTx() public onlyMonadFork {
         deal(MAINNET_USDC, sender, type(uint96).max);
         vm.prank(sender);
@@ -127,7 +131,7 @@ contract MultisendForkTest is Test {
 
         uint256 g200 = _measure(MAINNET_USDC, 200, 0x400000);
         console.log("MONAD gas, 200 recipients (real USDC):", g200);
-        console.log("=> derive the dashboard's default batch size from this");
-        assertLt(g200, 150_000_000, "a 200-person payroll must fit one transaction");
+        console.log("=> feeds lib/gas/estimate.ts");
+        assertLt(g200, 30_000_000, "must fit Monad's 30M per-transaction gas limit");
     }
 }
