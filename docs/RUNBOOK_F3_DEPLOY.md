@@ -72,7 +72,7 @@ See §4 on why a Safe isn't required for _this_ contract.
 ## 1. Measure the gas (do this first — it changes the source)
 
 ```powershell
-cd C:SERSSERDOCUMENTSDISTRONTRACTS
+cd C:\Users\USER\Documents\DISTRO\contracts
 forge test --fork-url monad_mainnet --match-path "test/Multisend.fork.t.sol" -vv
 ```
 
