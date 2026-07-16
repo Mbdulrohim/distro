@@ -2,39 +2,45 @@ import { Check, X, Clock, Circle, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Distribution status badge. Per DESIGN.md's Never-Color-Alone Rule, every
- * state carries an icon and a word as well as a colour — the meaning has to
- * survive a grayscale screenshot, and ~8% of men can't rely on the hue.
+ * Distribution status badge — the clearest expression of DESIGN.md's
+ * Functional Color Rule: every hue here names a payment state, and nothing is
+ * coloured for decoration. On a monochrome screen these are the only colour,
+ * which is exactly why they read instantly.
  *
- * `warning`/`success` semantic tokens aren't wired into globals.css yet (F5),
- * so this uses the tokens that exist. Swap when they land.
+ * Never-Color-Alone Rule: each state carries an icon AND a word as well as a
+ * colour. The meaning survives a grayscale screenshot, and doesn't depend on
+ * hue discrimination (~8% of men can't rely on it).
  */
 
 const STATUS: Record<string, { label: string; icon: typeof Check; className: string }> = {
   draft: {
     label: "Draft",
     icon: Circle,
-    className: "border-border bg-muted text-muted-foreground",
+    // Neutral: nothing has happened yet, so no state colour is warranted.
+    className: "border-border bg-surface-2 text-muted-foreground",
   },
   submitted: {
     label: "In flight",
     icon: Clock,
-    className: "border-border bg-muted text-foreground",
+    // Pending — outcome genuinely unknown until the receipt lands.
+    className: "border-info/30 bg-info-surface text-info",
   },
   completed: {
     label: "Completed",
     icon: Check,
-    className: "border-border bg-muted text-foreground",
+    className: "border-success/30 bg-success-surface text-success",
   },
   partially_completed: {
     label: "Partial",
     icon: AlertTriangle,
-    className: "border-destructive/30 bg-destructive/10 text-destructive",
+    // Attention, not alarm: money moved, some of it didn't land, and it's
+    // retryable. Warning rather than destructive.
+    className: "border-warning/30 bg-warning-surface text-warning",
   },
   failed: {
     label: "Failed",
     icon: X,
-    className: "border-destructive/30 bg-destructive/10 text-destructive",
+    className: "border-destructive/30 bg-destructive-surface text-destructive",
   },
 };
 
@@ -42,7 +48,7 @@ export function StatusBadge({ status, count }: { status: string; count?: number 
   const s = STATUS[status] ?? {
     label: status,
     icon: Circle,
-    className: "border-border bg-muted text-muted-foreground",
+    className: "border-border bg-surface-2 text-muted-foreground",
   };
   const Icon = s.icon;
 

@@ -15,10 +15,9 @@ import { Button } from "@/components/ui/button";
  * networks in their wallet at any point afterward — this is the only thing
  * that catches that. Silent when correct; blocking-loud when not.
  *
- * Uses the destructive role as the attention token because the semantic
- * `warning` role isn't wired into globals.css yet (that's F5 — see DESIGN.md
- * Don'ts). Swap to `warning` once it lands; the wrong-network state is a
- * warning, not a failure.
+ * Uses the `warning` role, not `destructive`: being on the wrong network is a
+ * recoverable mistake one click from fixed, not a failure. Reserving
+ * destructive for money that didn't land is what keeps it loud.
  */
 export function NetworkBanner() {
   const { isConnected, chainId } = useAccount();
@@ -30,9 +29,9 @@ export function NetworkBanner() {
   return (
     <div
       role="alert"
-      className="flex flex-wrap items-center justify-between gap-3 border-b border-destructive/30 bg-destructive/10 px-6 py-2.5 text-sm"
+      className="flex flex-wrap items-center justify-between gap-3 border-b border-warning/30 bg-warning-surface px-6 py-2.5 text-sm"
     >
-      <div className="flex items-center gap-2 text-destructive">
+      <div className="flex items-center gap-2 text-warning">
         <AlertTriangle className="size-4 shrink-0" />
         <span>
           Wrong network. Distro runs on <strong>Monad Mainnet</strong> only — actions stay disabled

@@ -26,7 +26,18 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  /* Functional semantic set — every hue means a payment state (DESIGN.md).
+     Each role has a solid (text/icon/border) and a surface tint (chip/banner). */
   --color-destructive: var(--destructive);
+  --color-destructive-surface: var(--destructive-surface);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -63,10 +74,36 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+
+  /* --- Functional semantics (DESIGN.md §2) -------------------------------
+     Distro is monochrome-first: colour is never decoration, it always names a
+     payment state. Solids are tuned to >=4.5:1 on canvas so they are legible
+     as text, not just as chips. */
+
+  /* Failed / irreversible. The loudest thing in the system, so it is used the
+     least. Darkened from the shadcn default (0.577) to clear AA on white. */
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-surface: oklch(0.965 0.02 27);
+  /* Paid — a confirmed payment. The product's happiest event. */
+  --success: oklch(0.5 0.14 150);
+  --success-surface: oklch(0.965 0.03 150);
+  /* Partial / attention without alarm. */
+  --warning: oklch(0.55 0.12 75);
+  --warning-surface: oklch(0.97 0.04 85);
+  /* Interactive + pending. The closest thing to an accent; DESIGN.md caps it
+     at <=10% of any screen — its rarity is what makes focus legible. */
+  --info: oklch(0.5 0.17 255);
+  --info-surface: oklch(0.965 0.02 255);
+
+  /* Recessed surfaces — depth comes from tonal layering, not shadow. */
+  --surface: oklch(0.985 0 0);
+  --surface-2: oklch(0.97 0 0);
+
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Focus is the interactive blue, not a grey — a focused field must be
+     unmistakable, and this is the one place the accent earns its keep. */
+  --ring: oklch(0.5 0.17 255);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -98,10 +135,27 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+
+  /* --- Functional semantics, dark pairs ---------------------------------
+     Solids lift for legibility on a dark canvas. Surfaces become translucent
+     tints of their own hue rather than light fills — a pale chip on a dark
+     background glares, and DESIGN.md's dark mode conveys depth through
+     lighter surfaces, never stronger shadow. */
+  --destructive: oklch(0.7 0.19 22);
+  --destructive-surface: oklch(0.7 0.19 22 / 12%);
+  --success: oklch(0.72 0.16 152);
+  --success-surface: oklch(0.72 0.16 152 / 12%);
+  --warning: oklch(0.78 0.14 80);
+  --warning-surface: oklch(0.78 0.14 80 / 12%);
+  --info: oklch(0.7 0.16 255);
+  --info-surface: oklch(0.7 0.16 255 / 12%);
+
+  --surface: oklch(0.205 0 0);
+  --surface-2: oklch(0.269 0 0);
+
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.7 0.16 255);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -109,12 +163,17 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  /* Was oklch(0.488 0.243 264.376) — a saturated crypto-purple left over from
+     the shadcn preset, and the single most on-the-nose thing in the file.
+     DESIGN.md names it as a Don't by value: Distro reads like Stripe/Linear/
+     Mercury/Vercel, never a token-launch site. Monochrome, like every other
+     primary in the system. */
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.7 0.16 255);
 }
 
 @layer base {
