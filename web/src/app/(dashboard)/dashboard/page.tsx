@@ -40,7 +40,7 @@ export default async function DashboardPage() {
     <main className="mx-auto w-full max-w-5xl px-6 py-10">
       <div className="mb-8 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Distributions</h1>
-        <Button size="sm" disabled title="Available once the create flow ships">
+        <Button size="sm" render={<Link href="/dashboard/new" />}>
           <Plus />
           New distribution
         </Button>
@@ -142,7 +142,7 @@ function EmptyState() {
         one transaction at a time.
       </p>
       <div className="mt-5">
-        <Button size="sm" disabled title="Available once the create flow ships">
+        <Button size="sm" render={<Link href="/dashboard/new" />}>
           <Plus />
           New distribution
         </Button>
