@@ -35,6 +35,15 @@ contract NoReturnToken {
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
     }
+
+    /// @dev Also deliberately no `returns (bool)`. Needed because the escrow
+    /// holds funds and pays out with `transfer`, whereas `Multisend` pulls with
+    /// `transferFrom` — a mock that only implements one tests only one path.
+    function transfer(address to, uint256 amount) external {
+        require(balanceOf[msg.sender] >= amount, "balance");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+    }
 }
 
 /// @dev Returns `false` rather than reverting on failure. Silently loses funds
@@ -76,6 +85,14 @@ contract BlocklistToken is ERC20 {
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         require(!blocked[to], "recipient blocked");
         return super.transferFrom(from, to, amount);
+    }
+
+    /// @dev Blocks `transfer` too. The escrow holds funds and pays out with
+    /// `transfer`, so a mock that only guards `transferFrom` silently lets every
+    /// "blocked" recipient through and the failure-isolation test proves nothing.
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        require(!blocked[to], "recipient blocked");
+        return super.transfer(to, amount);
     }
 }
 
@@ -137,6 +154,28 @@ contract GasBurnerToken is ERC20 {
 
     function transferFrom(address, address, uint256) public pure override returns (bool) {
         // `invalid` consumes all remaining gas — the precise condition the floor exists to detect.
+        assembly {
+            invalid()
+        }
+    }
+}
+
+/// @dev Burns gas on `transfer` while `transferFrom` works normally.
+///
+/// The escrow's shape demands this split: it is funded via `transferFrom` and
+/// pays out via `transfer`. `GasBurnerToken` (which burns on `transferFrom`)
+/// would detonate during `fund()` — before execution is even reached — so it
+/// cannot test the griefing path that matters. This funds cleanly, then starves
+/// each payout, which is exactly what an attacker's under-gassed
+/// `executeChunk` looks like from inside the loop.
+contract TransferGasBurnerToken is ERC20 {
+    constructor() ERC20("TransferGasBurner", "TGAS") { }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function transfer(address, uint256) public pure override returns (bool) {
         assembly {
             invalid()
         }

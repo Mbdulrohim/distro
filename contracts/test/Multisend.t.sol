@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Multisend } from "../src/Multisend.sol";
+import { PayloadLib } from "../src/PayloadLib.sol";
 import {
     StandardToken,
     NoReturnToken,
@@ -309,13 +310,13 @@ contract MultisendTest is Test {
 
     function test_distribute_revertsOnEmptyPayload() public {
         vm.prank(sender);
-        vm.expectRevert(Multisend.EmptyPayload.selector);
+        vm.expectRevert(PayloadLib.EmptyPayload.selector);
         multisend.distribute(IERC20(address(token)), "");
     }
 
     function test_distribute_revertsOnRaggedPayload() public {
         vm.prank(sender);
-        vm.expectRevert(Multisend.InvalidPayloadLength.selector);
+        vm.expectRevert(PayloadLib.InvalidPayloadLength.selector);
         multisend.distribute(IERC20(address(token)), hex"deadbeef");
     }
 

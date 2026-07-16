@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { PayloadLib } from "./PayloadLib.sol";
 
 /// @title Multisend
 /// @notice Distributes an ERC-20 token to many recipients in a single transaction.
@@ -25,11 +26,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// Scheduling lands later as a separate escrow contract reusing this payload
 /// encoding — this contract is not modified by that work.
 contract Multisend is ReentrancyGuard {
-    /// @notice Canonical payload entry: `abi.encodePacked(address, uint128)`.
-    /// @dev Normative encoding, shared with the future escrow contract — see
-    /// docs/CONTRACT_SPEC.md. `uint128` caps one payment at ~3.4e38 base units;
-    /// `uint96` would have overflowed on high-supply tokens.
-    uint256 internal constant ENTRY_SIZE = 36;
+    using PayloadLib for bytes;
 
     /// @notice Minimum gas required before attempting a transfer.
     /// @dev Not a security control here (unlike the escrow, where execution is
@@ -88,10 +85,6 @@ contract Multisend is ReentrancyGuard {
         uint256 failedCount
     );
 
-    /// @notice Payload length is not a whole number of 36-byte entries.
-    error InvalidPayloadLength();
-    /// @notice Payload contains no entries.
-    error EmptyPayload();
     /// @notice Refusing to burn tokens by sending to the zero address.
     error ZeroRecipient(uint256 index);
     /// @notice Gas limit too low to attempt this transfer honestly. See MIN_GAS_PER_TRANSFER.
@@ -111,16 +104,15 @@ contract Multisend is ReentrancyGuard {
         nonReentrant
         returns (uint256 totalPaid, uint256 paidCount, uint256 failedCount)
     {
-        if (payload.length == 0) revert EmptyPayload();
-        if (payload.length % ENTRY_SIZE != 0) revert InvalidPayloadLength();
+        // Length validation lives in PayloadLib — one implementation, so this
+        // and the escrow can never disagree about what a payload is.
+        uint256 count = payload.count();
         // A call to an address with no code returns success with empty returndata,
         // which `_tryTransferFrom` would otherwise read as a successful payment.
         if (address(token).code.length == 0) revert TokenNotContract();
 
-        uint256 count = payload.length / ENTRY_SIZE;
-
         for (uint256 i; i < count; ++i) {
-            (address recipient, uint256 amount) = _decodeEntry(payload, i);
+            (address recipient, uint256 amount) = payload.entryAt(i);
 
             if (recipient == address(0)) revert ZeroRecipient(i);
             if (gasleft() < MIN_GAS_PER_TRANSFER) revert InsufficientGas(i);
@@ -140,22 +132,6 @@ contract Multisend is ReentrancyGuard {
         }
 
         emit Distributed(msg.sender, address(token), totalPaid, paidCount, failedCount);
-    }
-
-    /// @dev Reads entry `index` from calldata. Layout: bytes[0:20] recipient, bytes[20:36] amount.
-    function _decodeEntry(bytes calldata payload, uint256 index)
-        private
-        pure
-        returns (address recipient, uint256 amount)
-    {
-        assembly {
-            let ptr := add(payload.offset, mul(index, ENTRY_SIZE))
-            // Top 20 bytes of the word at ptr.
-            recipient := shr(96, calldataload(ptr))
-            // Top 16 bytes of the word at ptr+20. Any bytes read beyond this
-            // entry are shifted out, so a read past the payload's end is safe.
-            amount := shr(128, calldataload(add(ptr, 20)))
-        }
     }
 
     /// @dev `transferFrom` that reports failure instead of reverting, tolerating
