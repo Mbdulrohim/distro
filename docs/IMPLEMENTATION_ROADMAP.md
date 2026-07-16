@@ -153,7 +153,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 
 ---
 
-## F7 — CSV import & validation engine ⬜
+## F7 — CSV import & validation engine ✅ (parse/validate/encode + parity)
 
 **Goal.** Pure, well-tested library that turns a CSV/pasted list into validated recipient rows + the canonical payload bytes. Reused by client (instant UX) and server (authority).
 
