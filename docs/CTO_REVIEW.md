@@ -1,156 +1,181 @@
-# CTO Review — Distro Pre-Launch
+# CTO Review — Distro, before engineering begins
 
-Reviewed against the current [PRD](PRD.md), [FEATURES](FEATURES.md), [USER_FLOW](USER_FLOW.md), [CONTRACT_SPEC](CONTRACT_SPEC.md), [DATABASE](DATABASE.md), [API](API.md). Stack target: Next.js 15, React, TS, Tailwind, shadcn/ui, Wagmi, Viem, Foundry, Solidity, Supabase, on Monad mainnet.
+Reviewed: [PRD](PRD.md) · [FEATURES](FEATURES.md) · [USER_FLOW](USER_FLOW.md) · [CONTRACT_SPEC](CONTRACT_SPEC.md) v2 · [DATABASE](DATABASE.md) · [API](API.md) · [ROADMAP](ROADMAP.md) · [BRAND](BRAND.md) · [PRODUCT](../PRODUCT.md)
 
-None of this is implementation yet — this is the gap list to resolve before the blueprint is frozen.
+Stack: Next.js 15, React, TS, Tailwind, shadcn/ui, wagmi, viem, Foundry, Solidity, Supabase. Monad Mainnet.
 
-> **Partially superseded (2026-07-15).** This review was written *before* the authoritative product definition arrived, against docs that described a claim-based Merkle/vesting product. Distro is actually a **push-based distribution engine** — the other docs have been rewritten; this one is kept as the standing risk register.
->
-> **Still valid:** everything in Security concerns, Database improvements, Technical architecture, Landing page, Dashboard, and most Smart contract risks (SafeERC20, fee-on-transfer, ERC-777, single-EOA admin, gas griefing, Monad gas behavior).
->
-> **Superseded:** anything referencing Merkle tree correctness/claim locking, vesting, recipient claim discovery, or the airdrop-first sequencing — §6 below is rewritten accordingly. Two gaps it raised (recipient notification, campaign correction) are now moot: recipients never transact, and a mis-entered address in a push model is an *irreversible send*, which is why validation and the review step are safety-critical in [FEATURES.md](FEATURES.md).
->
-> The custody-vs-automation decision it did not anticipate is resolved in [CONTRACT_SPEC.md](CONTRACT_SPEC.md).
+> **Supersedes the v1 review** (written before the product definition existed, against a claim-based model that was never Distro). Contract-level findings live in [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) and are not repeated here; this document reviews the **product, scope, and engineering plan**.
+
+The architecture is now sound. My concern is no longer *"is this correct?"* — it's **"is this the right thing to build, and is it the right size?"** Two of the findings below argue we are building substantially more than the stated problem requires.
 
 ---
 
-## 1. Missing product decisions
+## 🔴 P1 — The stated problem never mentions scheduling, but half the architecture exists to serve it
 
-These block contract design and cannot be retrofitted cheaply after audit:
+The PRD's Problem section, in full, is: teams *copy addresses, verify them, enter amounts, repeat transactions, track status, retry failures, and keep records by hand.*
 
-- **Monetization is undefined.** No fee model anywhere in the spec (protocol fee %, flat fee per campaign, subscription, free). This has to be decided *before* contracts are written — a fee-taking mechanism (e.g. `protocolFeeBps` + treasury address in the factory) is a contract-level decision, and adding it post-audit means re-auditing.
-- **No team/org concept.** `users` keys off a single wallet address. Is DISTRO single-wallet-per-account, or does a company need multiple team members managing one campaign (view-only ops, an approver, etc.)? This is a normal B2B expectation and affects both DB schema and contract ownership model (who can call `recoverUnclaimed`?).
-- **No compliance/sanctions posture.** Distributing tokens to arbitrary addresses on mainnet, at "production-ready startup" stakes, raises OFAC/sanctions-screening and securities-classification questions depending on what's being distributed and to whom. This needs a legal decision, not an engineering one — but it affects whether the product needs an address-screening step before claims are enabled.
-- **Recipient discovery/notification is unsolved.** Nothing tells a recipient they're eligible except "post-v1 notifications." An airdrop nobody knows about doesn't get claimed. Needs at least an MVP notification path (email capture at creation? social share links? on-chain event watchers integrating with wallets?) before calling airdrop "done."
-- **Campaign correction path is missing.** Once a Merkle root is deployed, it's immutable by design (correct, for security) — but there's no defined flow for "creator uploaded a bad CSV, campaign is wrong." Cancel-and-redeploy? Who eats the gas cost and the confusion of two claim links?
-- **Fee-on-transfer / rebasing / non-standard ERC-20 tokens** aren't addressed. If a creator picks such a token, the amounts tracked in the Merkle tree and DB will drift from actual transferable balances. Decide: allow-list standard tokens only for v1, or explicitly test and support non-standard tokens?
-- **Ownership/admin key model undecided.** Single EOA as factory owner is a single point of failure for a product holding real funds. Needs multisig from day one (even on testnet, to build the operational habit).
-- **Pause/emergency-stop mechanism absent.** If a bug is found in an already-funded, live campaign, there's currently no way to stop draining without a full incident. Needs a scoped, transparent pause capability (blocks new claims only, cannot redirect funds) — or an explicit decision that immutability without pause is the accepted risk tradeoff.
-- **Decimals/units convention undefined.** Is CSV `amount` in human units (e.g. `100.5`) or base units (`100500000000000000000`)? This ambiguity is a top cause of real-world airdrop bugs. Must be pinned down and enforced in both the upload validator and the Merkle leaf encoding.
-- **Testnet → mainnet workflow undecided.** No staging environment, no canary/soft-launch plan mentioned. For a product whose entire pitch is "we don't lose your funds," a public testnet period with a real bug-bounty window before mainnet default should be part of the plan, not an afterthought.
+Every one of those is about **bulk, tracking, and retry**. Not one is about **timing**. Nobody in that paragraph is complaining that they can't pay people next Friday.
 
-## 2. UX gaps
+Yet Scheduling is a pillar, and it is the *sole reason* for almost all of the system's complexity:
 
-- No defined **error/failure states**: wrong network, insufficient token balance, wallet rejection, RPC timeout, tx reverted. At "Stripe/Linear" polish tier, every one of these needs a designed state, not a generic toast.
-- No **loading/pending/lag state** for the gap between "tx confirmed on-chain" and "indexer has updated the dashboard" — without an explicit "syncing…" state, users will think the claim failed and retry, wasting gas.
-- **Mobile / WalletConnect flow** isn't specified. Recipients claiming from a wallet app browser or via WalletConnect deep link is a first-class path for airdrops, not an edge case.
-- No **empty states** (zero campaigns, zero recipients, zero claims yet).
-- No **CSV template/example** in the flow — "upload a CSV" assumes the user already knows the exact column format.
-- No explicit **review/confirm step** before the deploy transaction that shows the full committed state (recipient count, total amount, Merkle root, deadline) with a clear "this is irreversible" moment — critical given root immutability.
-- No **post-claim receipt** (explorer link, downloadable proof-of-claim) for recipients who need it for their own records/accounting.
-- No plan for **large recipient tables** (search, filter, sort, pagination) — some campaigns will have thousands of rows.
-- No **wrong-wallet-connected** handling: recipient connects wallet A, but the campaign link/allocation is for wallet B — needs a clear, non-scary explanation, not a silent "not eligible."
-- Accessibility isn't mentioned despite the "enterprise-grade" bar — should be a stated requirement (WCAG AA minimum), not assumed.
+| Component | Exists because of |
+|---|---|
+| Escrow contract | scheduling (funds must be present while the creator is offline) |
+| Chunk commitment + onchain DA | escrow (a third party must reconstruct the list) |
+| `cancel` / `reclaim` / grace period | escrow (funds can get stuck) |
+| Keeper service + hot wallet + MON reserve monitoring | scheduling |
+| Indexer service | keeper (the creator wasn't present to watch the tx) |
+| The gas-griefing attack surface | permissionless execution, which exists for scheduling |
 
-## 3. Smart contract risks
+**Delete scheduling and nearly all of it evaporates.** A distribution that executes *now*, while the creator is present and signing, needs no escrow at all — just `approve` + a stateless multisend that pulls via `transferFrom` and pushes. No custody, no state machine, no data-availability problem, no keeper, no reclaim path, no stranded funds.
 
-Beyond what's already flagged in [CONTRACT_SPEC.md](CONTRACT_SPEC.md):
+This is not an argument that scheduling is worthless — payroll genuinely wants it. It's an argument that **scheduling is an unvalidated hypothesis carrying the entire cost of the system**, while the validated pain (bulk + tracking + retry) needs almost none of it.
 
-- **Fee-on-transfer / rebasing tokens** break the "amount tracked = amount transferable" assumption in both `MerkleAirdrop` and `VestingSchedule`. Either explicitly validate token behavior at campaign-creation time, or restrict to a vetted token list for v1.
-- **Merkle root is immutable by design — but that means creator error is also permanent.** No update path, only cancel/redeploy. This must be a conscious, documented tradeoff, not a surprise discovered post-launch.
-- **Gas griefing in `BatchPayout`** if a try/catch-per-recipient pattern is used: a malicious recipient contract with an expensive fallback can consume disproportionate gas. Needs explicit gas-forwarding limits per transfer (not the default 63/64 forward), and ideally push standard ERC-20 `transfer` (no external call risk) rather than sending native currency.
-- **Non-standard ERC-20 return values** (tokens that don't return `bool`, e.g. some legacy tokens) will silently break naive `transfer()` calls — must use a safe-transfer wrapper (OpenZeppelin's `SafeERC20`), not raw `IERC20.transfer`.
-- **Single EOA admin** on the factory (and on `recoverUnclaimed`/pause rights, if added) is a concentrated risk — needs multisig, stated explicitly in `CONTRACT_SPEC.md`, before audit.
-- **No pausability currently designed** — see product decision above; if added, must be scoped so a paused contract can never redirect or seize already-claimable funds, only halt new state changes, and pause actions must emit loud on-chain events (no silent freezes).
-- **ERC-777 / callback-capable tokens** should be explicitly excluded — hooks during transfer are a known reentrancy vector even with a guard on the calling function, since the guard doesn't protect against reentering a *different* function via the callback.
-- Confirm **Monad gas-cost and precompile behavior** for the exact opcodes these contracts rely on (address recovery, batch loops) before assuming Ethereum-mainnet gas numbers hold — use the `monskills` reference rather than porting assumptions.
-
-## 4. Security concerns (beyond contracts)
-
-- **Supabase RLS is the whole ballgame here** — with wallet-address-based identity, RLS policies must strictly scope creators to their own campaigns and allow only the correctly-scoped anonymous reads for the public claim portal. This needs explicit policy review, not default-Supabase-project assumptions.
-- **Never expose the Supabase service-role key client-side.** Privileged writes (campaign creation, status transitions) must go through a server layer (Next.js route handlers / edge functions), not direct client Supabase calls with elevated permissions.
-- **CSV upload is an injection/DoS surface**: formula injection (CSV opened in Excel elsewhere), unbounded file size (resource exhaustion during Merkle generation), and malformed encoding all need server-side validation, not just client-side.
-- **Rate limiting** is absent from the API spec — upload and Merkle-generation endpoints are computationally expensive and must be rate-limited/authenticated to prevent abuse.
-- **SIWE (Sign-In with Ethereum) session handling** needs domain-binding, nonce expiry, and replay protection — standard but easy to get wrong; use a maintained library, don't hand-roll.
-- **Indexer must be idempotent and single-writer-safe.** If the indexer process restarts or runs concurrently, duplicate event processing must not double-count claims — enforce via a unique constraint on `(tx_hash, log_index)`, not "hope it doesn't happen."
-- **DISTRO itself must never custody creator private keys or funds beyond what's in the campaign contract itself** — worth stating explicitly as a security principle given "batch payout" implies someone/something executes transactions; that should always be the creator's own wallet, never a DISTRO-held key.
-
-## 5. Database improvements
-
-Current schema is a reasonable start but was written against generic Postgres, not Supabase specifically:
-
-- **Design for Supabase's actual primitives**: RLS policies per table, Supabase Auth (or custom JWT via SIWE) for identity, Supabase Storage for raw CSV files (keep the original upload for audit/dispute resolution, not just parsed rows), Supabase Realtime for live dashboard updates instead of polling.
-- **Add `chain_id` / `network`** to `campaigns` — mainnet vs testnet must be a first-class column, not inferred, to prevent an accidental cross-environment mixup in the dashboard.
-- **Add idempotency key to `claim_events`**: unique constraint on `(tx_hash, log_index)` to make indexer reprocessing safe.
-- **Store amounts in base units consistently** (bigint/numeric matching token decimals) with the token's `decimals` cached on `campaigns` for display conversion — don't let display-unit and base-unit values coexist ambiguously.
-- **Add an `organizations`/`team_members` layer** if the missing team-account decision above resolves toward multi-user accounts.
-- **Add an `audit_log` table** for creator/admin actions (campaign created, funded, paused, recovered) — expected for an "enterprise-grade" product and needed for support/dispute resolution.
-- **Soft-delete, not hard-delete**, on campaigns and recipients — compliance and audit trails shouldn't be destructible by a UI action.
-
-## 6. Feature prioritization
-
-*(Rewritten against the real product — see the superseded notice above. Reflected in [ROADMAP.md](ROADMAP.md).)*
-
-1. **Core distribution first** — create → import → validate → review → fund → execute now. This is the product; everything else is an enhancement of it. Get it audited-grade before adding surface area.
-2. **Scheduling second.** It's the first pillar that differentiates Distro from a commodity multisend script, and it's cheap once escrow exists (`executeAfter` is one check). It's also what makes "payroll engine" true rather than aspirational.
-3. **Tracking + retry third.** "Retry failed transfers" and "track payment status" are named pain points in the PRD's problem statement — they're core, not polish. But they depend on the indexer, which is the most operationally involved piece.
-4. **Recurring automation deferred to v2.** It's the most-requested-sounding feature and the most dangerous to rush: repeat funding and cycle state materially expand the contract's audit surface. Ship scheduled-once first; a "duplicate this distribution" convenience covers most of the value at a fraction of the risk.
-5. **Monetization must be decided before the audit**, even if launched at zero — the contracts ship with a fee hook precisely so this doesn't force a re-audit later.
-6. **Team accounts** are reasonable to defer, but decide now whether they're coming: retrofitting an `organizations` layer under `distributions` later is a migration, not a feature.
-
-## 7. Technical architecture improvements
-
-- **The indexer needs a real home.** It can't be a Vercel serverless function (no persistent event listening) — deploy it as a long-running service (Fly.io, Railway, a small dedicated VM) watching logs via `viem`, with reorg-safety (confirmation depth before writing) and a periodic on-chain reconciliation job as the spec already notes.
-- **Use a proper monorepo layout**: `apps/web` (Next.js — marketing, dashboard, and claim portal as route groups in one app, or split if the marketing site needs independent deploy cadence), `apps/indexer` (the standalone service above), `contracts/` (Foundry project), `packages/` (shared TS types generated from contract ABIs via `wagmi`'s codegen, shared config/UI).
-- **CI gates**: Foundry unit + fuzz tests and a static analyzer (Slither or similar) required on every contract PR; typecheck/lint/build required on every frontend PR. No merges to main that skip these, given the funds at stake.
-- **Environment separation**: distinct Supabase projects and distinct contract deployments for testnet/staging vs mainnet, selected via environment config — never a runtime toggle that could point a production session at the wrong chain.
-- **Observability from day one**: error tracking (Sentry or equivalent) on both frontend and indexer, plus on-chain monitoring/alerting for anomalous activity (e.g. a `recoverUnclaimed` call, unusually large batch payout) — expected baseline for infra handling real funds.
-- **Client-side Merkle generation should move server-side (or at minimum be mirrored server-side)** for large recipient lists — don't rely solely on the browser for tree construction on thousands of rows; keep a client-side spot-check for user trust, but generate authoritatively on the server.
-
-## 8. Landing page improvements
-
-Against the stated Stripe/Linear/Mercury/Vercel bar:
-
-- Clear above-the-fold value proposition with one primary CTA — infra products convert on clarity, not marketing flourish.
-- A "how it works" 3-step visual (create → fund → recipients claim) in the Stripe explainer style.
-- A dedicated **`/security` page**: audit report/status, verified contract source links, bug bounty program (even if minimal at launch) — for a product holding real money, this page matters more than most marketing content.
-- Trust signals section (once real: audit badge, notable users) rather than empty placeholders.
-- Docs-first information architecture (Linear/Vercel pattern) — a real docs subdomain/section, not just marketing copy.
-- Pricing page — blocked on the monetization decision above.
-- Full dark/light mode support — table stakes at this design tier.
-
-## 9. Dashboard improvements
-
-- Persistent, unmissable **network/environment indicator** (testnet vs mainnet) — given real-money stakes, accidental mainnet actions must be hard to do by mistake.
-- **Realtime updates** (Supabase Realtime) instead of polling for claim/release status.
-- **Command palette** (cmd+k) — expected at this polish tier (Linear-style).
-- **Per-campaign audit trail/timeline** (created, funded, deployed, key events) visible in the UI, not just in logs.
-- **Org/team switcher** if the team-account decision lands that way.
-- **Exportable reports** (CSV/PDF) for creators' own compliance/accounting recordkeeping.
-- **Direct block-explorer links** surfaced per campaign/transaction, not buried.
+**Recommendation:** ship the validated thing first. See S1.
 
 ---
 
-## Proposed production architecture (summary)
+## 🔴 P2 — Push is economically wrong for the airdrop use case, which is listed as a headline use case
 
-```
-distro/
-├── apps/
-│   ├── web/            # Next.js 15 — marketing + dashboard + claim portal (route groups)
-│   └── indexer/         # Long-running service (NOT serverless) — viem log watcher, reorg-safe, reconciliation cron
-├── contracts/            # Foundry — DistroFactory, MerkleAirdrop, VestingSchedule, BatchPayout
-├── packages/
-│   ├── contract-types/   # ABI-generated TS types (wagmi codegen)
-│   └── ui/                # Shared shadcn/ui-based components (if marketing/app split later)
-└── docs/
-```
+Airdrops appear in the PRD's opening line, its use-case list, and its vision. But push and airdrops are a bad match at real airdrop scale, for two independent reasons.
 
-- **Auth**: SIWE → server-issued JWT compatible with Supabase RLS (wallet address as the identity claim).
-- **Data flow**: contracts emit events → indexer (persistent service) watches logs with confirmation-depth safety → idempotent upserts into Supabase (unique on `tx_hash` + `log_index`) → dashboard reads via RLS-scoped Supabase client + Realtime subscriptions → periodic reconciliation job re-verifies indexed state against direct chain reads.
-- **Admin/ownership**: multisig-controlled factory from day one (testnet included), no single EOA with privileged rights on anything touching mainnet funds.
-- **Fee mechanism**: designed into the factory/campaign contracts now (even if set to zero at launch) so monetization doesn't require a post-audit contract change.
-- **Environments**: fully separated testnet/staging vs mainnet — separate Supabase projects, separate deployed contract addresses, no shared state.
-- **CI/CD**: Foundry fuzz + static analysis gate on contracts; typecheck/lint/build gate on frontend; both required before merge.
+**Gas.** In a push model the sender pays for every recipient. At ~50k gas per ERC-20 transfer to a cold address (higher on Monad, where cold state access runs 3–4× Ethereum — must be measured, not assumed):
+
+| Recipients | Sender's execution gas | Commit/DA gas |
+|---|---|---|
+| 200 (payroll) | ~10M | ~58k |
+| 5,000 (community rewards) | ~250M | ~1.4M |
+| 100,000 (real airdrop) | **~5B** | ~29M |
+
+A claim-based airdrop costs the sender ~100k gas total, because each claimant pays their own.
+
+**Claim rates.** Most airdrop allocations are never claimed — commonly only 10–30% are. A claim model means you only spend tokens on people who wanted them. **Push means you pay 100% of the gas and distribute 100% of the tokens, including to the ~75% of wallets that would never have bothered.** You're not just spending more gas; you're spending tokens you'd have kept.
+
+So for a 100k airdrop, push costs the sender orders of magnitude more gas *and* ~4–5× the tokens. This isn't a tuning problem — it's the wrong tool. It is precisely why virtually every large airdrop in the industry is claim-based.
+
+Push is genuinely better where recipients are **known, few, and must actually receive the funds without opting in**: payroll, grants, bounties, contributor comp, hackathon prizes, revenue share. That's most of the use-case list — and it's a strong product.
+
+**Recommendation:** qualify the claim. "Airdrops" in Distro means community distributions in the hundreds-to-low-thousands, where push's zero-friction delivery is an advantage. Mass speculative airdrops are **out of scope**, and should be stated as such rather than implied by the marketing. If they later become a target, that's a *claim mode* — a second contract alongside the push engine, not a replacement.
+
+> The irony is noted: the pre-definition draft was Merkle-claim-based. Deleting it was still correct — it was specced as *the* model rather than as one mode for one use case.
 
 ---
 
-## Open questions before the blueprint can be finalized
+## 🟠 S1 — MVP is over-scoped; a multisend-first MVP tests the hypothesis in a fraction of the surface
 
-1. Monetization model — fee mechanism and rate?
-2. Single-wallet accounts, or team/org accounts for v1?
-3. What's the compliance posture — any address screening required before claims?
-4. Non-standard token support (fee-on-transfer, rebasing) — supported or explicitly excluded in v1?
-5. Emergency pause — included in v1 contracts, or accepted as a risk tradeoff for full immutability?
-6. Recipient notification — what's the MVP mechanism for v1, given "post-v1" leaves airdrops undiscoverable?
+Current v1 requires, before a single user is served: escrow contracts + external audit + dashboard + indexer service + keeper service + Supabase/RLS. For a pre-revenue startup that is months of work and a $30–100k audit before you learn whether anyone wants this.
 
-Once these are answered, I'll turn this into the frozen implementation blueprint (contract interfaces, DB schema final pass, page-by-page UI spec) before any code is written.
+**Proposed MVP — "bulk send, now":**
+
+- One stateless `Multisend` contract: `distribute(token, payload)` → `transferFrom` the creator, push to all recipients, try/catch per transfer, emit `Paid` / `PaymentFailed`. On the order of 100 lines.
+- Creator signs `approve` then `distribute` **in the same session** — a short-lived allowance consumed immediately, the same pattern every DEX uses. Distro never holds funds or standing power, so "not a custodian" holds trivially.
+- **No indexer service.** The execution transaction's own receipt contains every `Paid`/`PaymentFailed` event — parse it client-side. Supabase stores history only.
+- **No keeper.** The creator is present.
+- **No escrow, no commit phase, no DA problem, no state machine, no cancel/reclaim, no stranded funds, no grace period.**
+- Retry = a second `distribute` with the failed subset.
+
+This delivers the entire stated problem — bulk, tracking, retry, records — and it is *dramatically* cheaper to audit, because the attack surface is roughly "does the loop pay the right people."
+
+**Then v1.1 adds scheduling** as a *separate* escrow contract reusing the same payload encoding and execution logic. The multisend contract stays untouched and already-audited. Nothing is thrown away; the escrow's complexity is paid for only once scheduling is validated.
+
+The current spec is the right *destination*. It is the wrong *first step*.
+
+---
+
+## 🟠 S2 — The v1 surface requires ops a small team may not have
+
+Even at full scope, be honest about what "production-ready" implies operationally:
+
+- **Keeper**: a hot wallet holding MON, which must stay above Monad's 10 MON reserve floor or it silently stops sending. Needs funding automation, balance alerting, failure alerting, and someone on call — because its failure mode is *missed payroll*, the one thing the product promises never happens.
+- **Indexer**: a long-running service (not serverless), reorg-safe, idempotent, with a reconciliation job. Its own deploy target, monitoring, and restart semantics.
+- **Audit**: 4–8 weeks lead time and $30–100k, and it must happen *after* the contracts stabilize. This is the long pole — plan the calendar backwards from it.
+
+The MVP in S1 eliminates the first two entirely and shrinks the third.
+
+---
+
+## 🟠 S3 — Consider a TVL/size cap for the first mainnet weeks
+
+The PRD's bar is "zero funds lost." An audit reduces risk; it doesn't eliminate it. For the first mainnet period, a per-distribution cap (and/or an allowlist of early users) bounds the blast radius of an unknown bug to something survivable.
+
+This is cheap to add as a factory parameter now and removable later. Retrofitting it after an incident is not an option, and "we capped exposure during the bake-in period" is a *sellable* trust signal, not an admission of weakness.
+
+---
+
+## 🟡 UX1 — The unfunded no-op is the product's sharpest edge
+
+Decoupling funding from creation (correct — it removes the capital lock-up) creates a state the chain cannot help with: **Ready but unfunded, scheduled time arrives, nothing happens.** No revert, no event, no signal. Payroll silently doesn't run.
+
+The contract cannot fix this. It is entirely the dashboard's burden, and a dashboard is not where the user is at 9am on payday — their email is.
+
+**This single failure mode is a stronger argument for shipping notifications than everything on the v2 list.** If scheduling ships without a "your distribution is unfunded and runs in 12 hours" notification, the first real payroll miss will be Distro's fault in every way that matters to the customer, regardless of what the contract did.
+
+## 🟡 UX2 — Chunk mechanics must not leak into the product
+
+Chunking is a gas artifact. Users think in *"pay these 400 people."* Commit-across-N-transactions, chunk indices, per-chunk execution, and partial chunk state are all implementation detail. If the UI ever says "chunk 3 of 7 failed," the abstraction has failed.
+
+The creator should see: recipients, a total, a status, and failures. One review step, one funding step, one progress bar — even when that's 9 transactions underneath.
+
+## 🟡 UX3 — Test payment is under-specified for how important it is
+
+[FEATURES.md](FEATURES.md) now lists it, but it needs a real design. The instinct to send $1 before $200k is universal and correct, and it is the *only* non-destructive rehearsal available for an irreversible action. Decide whether it's a separate one-recipient distribution (simple, real, costs a second flow) or a first-chunk-only execution (elegant, but couples to chunk mechanics UX2 says to hide).
+
+## 🟡 UX4 — Decimals remain the highest-probability money bug
+
+Human units in the CSV, base units onchain, `uint128` cap in the payload, `numeric(78,0)` in Postgres, and a token-supplied `decimals` that the UI must round-trip correctly. This is where a real distribution goes wrong by 10^18.
+
+The review step must show **both** representations and the token symbol, and the validator must reject a value exceeding `uint128` at import — Postgres will happily store a number the contract cannot accept, and that mismatch surfaces at execution, after funding.
+
+## 🟡 UX5 — Wrong-network and wallet-mismatch states
+
+Mainnet-only is enforced at sign-in, but a user can switch networks mid-session, or connect wallet B to a distribution created by wallet A. Both need designed states, not a silent empty dashboard.
+
+---
+
+## Missing edge cases
+
+- **Token pauses between funding and execution** (USDC-class). Every transfer fails; the run looks broken. Retry-later + reclaim covers it mechanically, but the UI must explain it's the token, not Distro.
+- **Recipient is a contract that reverts on receipt.** try/catch handles it; the failure message should distinguish "recipient rejected" from "Distro failed."
+- **Creator's balance drops below `totalAmount` between commit and fund.** `fund()` reverts — fine, but the dashboard should catch it before the wallet does.
+- **Duplicate addresses within one distribution.** Legal by design; validation warns. Confirm the retry key `(chunkIndex, position)` handles the same address failing in two chunks independently — [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) M2.
+- **`executeAfter` in the past at creation.** Should be legal (= execute now) — confirm it isn't accidentally rejected.
+- **Zero-amount entries.** Harmless onchain (no-op transfer), wasteful in gas. Reject at import.
+- **Very large single distribution** exceeding practical commit limits. Needs a defined ceiling and a clear error, not a wallet-level failure at tx 47 of 60.
+- **Chain reorg between "paid" and the dashboard showing it.** Confirmation-depth requirement, already noted in DATABASE.md — make sure the UI's optimistic state respects it.
+
+---
+
+## Security
+
+The contract-level findings are resolved in [CONTRACT_SPEC.md](CONTRACT_SPEC.md) v2. Standing items:
+
+- **Supabase RLS is the whole access-control story** — policies are now specified in [DATABASE.md](DATABASE.md); they must ship with tests that *attempt* cross-tenant access. A policy nobody tried to break is untested.
+- **Service-role key never client-side.** `server-only` guards this today; keep it that way.
+- **CSV upload** is an injection/DoS surface: formula injection, unbounded size, malformed encoding. Server-side validation is authoritative; client-side is UX.
+- **Rate-limit** upload and commit-computation endpoints.
+- **SIWE** — domain binding, nonce expiry, replay protection. Implemented; keep the library maintained.
+- **Distro must never hold keys or funds beyond the escrow itself.** The keeper signs *executions*, never *transfers of custody* — worth stating as an invariant in the ops runbook, since a keeper with a hot wallet is exactly where that line gets blurred under pressure.
+- **Multisig on the factory from day one**, including testnet, to build the habit before it matters.
+
+---
+
+## Scalability
+
+- **Contract**: chunked execution scales linearly; the ceiling is the creator's gas budget, not the design. Fine for the (corrected, P2) target scale.
+- **Indexer**: the real scaling risk. A 5,000-recipient distribution emits 5,000 events in a short window. Bulk-insert, don't row-at-a-time; back-pressure the Realtime fan-out or the dashboard will melt on exactly the distributions that matter most.
+- **Dashboard**: recipient tables need server-side pagination/filter/sort from day one — the indexes in [DATABASE.md](DATABASE.md) exist for this.
+- **Monad's throughput is not the bottleneck.** Your indexer and your RPC provider's rate limits are. Choose the provider against the `monskills` `tooling-and-infra` list before load appears, not after.
+
+---
+
+## Recommendations, in order
+
+1. **Ship the multisend MVP first (S1).** Escrow, keeper, indexer, and DA all exist to serve scheduling — which the stated problem never asks for. Validate bulk+tracking+retry with ~100 lines of contract and a cheap audit.
+2. **Qualify or drop the airdrop claim (P2).** Push is the wrong economics above ~1,000 recipients. Say "community distributions", not "airdrops", or plan a claim mode as a distinct v2 product.
+3. **Decide O1 and O2** ([CONTRACT_SPEC.md](CONTRACT_SPEC.md)) before any escrow work — both are immutable-contract shape decisions.
+4. **Move notifications from v2 into the scheduling release (UX1).** Scheduling without an unfunded-warning is a payroll-miss generator.
+5. **Cap exposure for the first mainnet weeks (S3).** Cheap now, impossible retroactively, and a trust signal rather than a weakness.
+6. **Measure Monad gas before writing the contract.** `MIN_GAS_PER_TRANSFER` and chunk size are security parameters; guessed values make the griefing fix decorative.
+7. **Settle monetization's *basis* before the audit.** Not the rate — the basis. Per-recipient vs per-distribution vs volume changes where the hook lives.
+8. **Write the RLS cross-tenant tests with the first migration**, not after the first table.
+9. **Plan the calendar backwards from the audit.** It's 4–8 weeks of lead time and the only truly unparallelizable item.
