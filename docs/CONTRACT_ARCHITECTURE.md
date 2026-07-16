@@ -4,8 +4,8 @@ System-level design of Distro's contracts, organized by concern. Architecture on
 
 The system has **two contracts, shipped in sequence**, sharing one payload encoding:
 
-- **`Multisend`** — stateless, synchronous. Execution happens now, while the sender signs. *Built.*
-- **`DistributionFactory` + `Distribution`** — stateful escrow, asynchronous. Execution happens on a schedule, while the sender is offline. *Designed, not built.*
+- **`Multisend`** — stateless, synchronous. Execution happens now, while the sender signs. _Built._
+- **`DistributionFactory` + `Distribution`** — stateful escrow, asynchronous. Execution happens on a schedule, while the sender is offline. _Designed, not built._
 
 Why two and not one: escrow's entire cost (custody, state machine, keeper, onchain data availability) exists only to let a run fire while the creator is offline. A synchronous run needs none of it. Forcing the MVP through escrow would pay escrow's full price for a feature the MVP doesn't use. See [CTO_REVIEW.md](CTO_REVIEW.md) S1.
 
@@ -15,13 +15,13 @@ Why two and not one: escrow's entire cost (custody, state machine, keeper, oncha
 
 Single responsibility per contract; nothing owns more than it must.
 
-| Contract | Owns | Explicitly does *not* own |
-|---|---|---|
-| **`Multisend`** | Decode a payload, pull-and-push each transfer from the caller, isolate per-recipient failure, emit results. | Custody, scheduling, state, access control, fees, upgradeability. |
-| **`DistributionFactory`** | Deploy `Distribution` clones deterministically; hold protocol config (fee bps, treasury, pause-new-creation); enumerate a creator's distributions. | Any power over funds already inside a deployed `Distribution`. |
-| **`Distribution`** (clone) | Escrow one distribution's funds; commit + emit the recipient list; enforce the schedule; execute permissionlessly; isolate failures; handle cancel/reclaim. | Cross-distribution state, admin override, mutability. |
+| Contract                   | Owns                                                                                                                                                        | Explicitly does _not_ own                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **`Multisend`**            | Decode a payload, pull-and-push each transfer from the caller, isolate per-recipient failure, emit results.                                                 | Custody, scheduling, state, access control, fees, upgradeability. |
+| **`DistributionFactory`**  | Deploy `Distribution` clones deterministically; hold protocol config (fee bps, treasury, pause-new-creation); enumerate a creator's distributions.          | Any power over funds already inside a deployed `Distribution`.    |
+| **`Distribution`** (clone) | Escrow one distribution's funds; commit + emit the recipient list; enforce the schedule; execute permissionlessly; isolate failures; handle cancel/reclaim. | Cross-distribution state, admin override, mutability.             |
 
-**The load-bearing boundary:** the factory can configure the *system* (fees, pausing new creation) but has **no path to funds in a live `Distribution`**. Isolation is per-distribution — a bug or exploit in one clone cannot reach another's escrow, and the factory owner cannot seize or redirect a funded run. This is provable in tests, not just asserted.
+**The load-bearing boundary:** the factory can configure the _system_ (fees, pausing new creation) but has **no path to funds in a live `Distribution`**. Isolation is per-distribution — a bug or exploit in one clone cannot reach another's escrow, and the factory owner cannot seize or redirect a funded run. This is provable in tests, not just asserted.
 
 ---
 
@@ -37,18 +37,18 @@ The contract's **token balance is always zero** by construction (funds move `sen
 
 The escrow's storage is deliberately shaped so the expensive data (the recipient list) lives in **event logs, not storage**:
 
-| Stored onchain (storage) | Held in calldata / logs (not storage) |
-|---|---|
-| `token`, `creator`, `executeAfter` | recipient addresses |
-| `totalAmount`, `totalPaid`, `failedAmount` | per-recipient amounts |
-| `chunkCount`, `committedCount`, `executedCount` | the payloads themselves (emitted, reconstructable from logs) |
-| `chunkHashes[]` (one hash per chunk) | |
-| `chunkExecuted` bitmap, `failed[(chunk, position)]` map | |
-| `state`, `reclaimed` flag | |
+| Stored onchain (storage)                                | Held in calldata / logs (not storage)                        |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| `token`, `creator`, `executeAfter`                      | recipient addresses                                          |
+| `totalAmount`, `totalPaid`, `failedAmount`              | per-recipient amounts                                        |
+| `chunkCount`, `committedCount`, `executedCount`         | the payloads themselves (emitted, reconstructable from logs) |
+| `chunkHashes[]` (one hash per chunk)                    |                                                              |
+| `chunkExecuted` bitmap, `failed[(chunk, position)]` map |                                                              |
+| `state`, `reclaimed` flag                               |                                                              |
 
-**Why commitment, not storage, for the list:** storing a recipient entry costs ~20k gas; a 1,000-person payroll would cost ~20M gas just to *store*, before paying anyone. Instead the contract stores a per-chunk **hash** and emits the full payload as event data (~8 gas/byte). Anyone can rebuild any chunk from logs.
+**Why commitment, not storage, for the list:** storing a recipient entry costs ~20k gas; a 1,000-person payroll would cost ~20M gas just to _store_, before paying anyone. Instead the contract stores a per-chunk **hash** and emits the full payload as event data (~8 gas/byte). Anyone can rebuild any chunk from logs.
 
-**Why this is correctness-critical, not just cheap:** if the list lived only in Distro's database, only Distro could execute — silently reintroducing the liveness dependency escrow exists to remove. Emitting it onchain is what makes permissionless execution *real*. See [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) C1.
+**Why this is correctness-critical, not just cheap:** if the list lived only in Distro's database, only Distro could execute — silently reintroducing the liveness dependency escrow exists to remove. Emitting it onchain is what makes permissionless execution _real_. See [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) C1.
 
 **Why the contract sums amounts itself:** because it receives the real payload at commit time, it computes `totalAmount` from the committed entries rather than trusting a creator-supplied figure — the "escrow doesn't cover the payments" failure mode cannot occur.
 
@@ -67,18 +67,19 @@ payload = entry ‖ entry ‖ …
 
 ## 3. Events
 
-Events are the system's read model — the dashboard and (later) the indexer are built entirely on them, and for the MVP they *are* the datastore.
+Events are the system's read model — the dashboard and (later) the indexer are built entirely on them, and for the MVP they _are_ the datastore.
 
-| Event | Emitted by | Purpose |
-|---|---|---|
-| `Paid(token, recipient, amount, index)` | both | one successful transfer |
-| `PaymentFailed(token, recipient, amount, index)` | both | one isolated failure (sender keeps the funds) |
-| `Distributed(sender, token, totalPaid, paidCount, failedCount)` | `Multisend` | one run's summary |
-| `RecipientsCommitted(chunkIndex, payload)` | `Distribution` | **the data-availability guarantee** — the full list, onchain |
-| `DistributionCreated(distribution, creator, token, executeAfter, chunkCount)` | factory | indexer entry point |
-| `Funded` / `ChunkExecuted` / `Cancelled` / `Reclaimed` | `Distribution` | state-machine transitions |
+| Event                                                                         | Emitted by     | Purpose                                                      |
+| ----------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------ |
+| `Paid(token, recipient, amount, index)`                                       | both           | one successful transfer                                      |
+| `PaymentFailed(token, recipient, amount, index)`                              | both           | one isolated failure (sender keeps the funds)                |
+| `Distributed(sender, token, totalPaid, paidCount, failedCount)`               | `Multisend`    | one run's summary                                            |
+| `RecipientsCommitted(chunkIndex, payload)`                                    | `Distribution` | **the data-availability guarantee** — the full list, onchain |
+| `DistributionCreated(distribution, creator, token, executeAfter, chunkCount)` | factory        | indexer entry point                                          |
+| `Funded` / `ChunkExecuted` / `Cancelled` / `Reclaimed`                        | `Distribution` | state-machine transitions                                    |
 
 **Design decisions:**
+
 - **The MVP needs no indexer** because the execution transaction's own receipt contains every `Paid`/`PaymentFailed` — parsed client-side. This is the single biggest operational simplification in the whole system.
 - Recipient and token are **indexed topics** so a client can filter "everything paid to address X" or "every run of token Y" without scanning.
 - `index` (and, in escrow, `position`) is on every payment event so a result maps back to its exact row — and is the retry key, never the address.
@@ -108,7 +109,7 @@ One function. No admin functions, no owner, no configuration — there is nothin
 - `cancel()` — creator; allowed only while no chunk has executed; full refund.
 - `reclaim()` — creator; sweeps undeliverable/unexecuted funds after completion or grace period.
 
-**Why `fund` and `executeChunk` are permissionless:** funding may come from a treasury multisig that isn't the creator; execution *must* be callable by anyone or the "survives Distro's downtime" guarantee is a lie.
+**Why `fund` and `executeChunk` are permissionless:** funding may come from a treasury multisig that isn't the creator; execution _must_ be callable by anyone or the "survives Distro's downtime" guarantee is a lie.
 
 ---
 
@@ -148,34 +149,34 @@ Creation, funding, and execution are **three separate moments**, possibly days a
 
 Monad charges on **`gas_limit`, not gas used**, so over-provisioning is a real cost to the caller — optimization here is about honesty as much as efficiency.
 
-| Technique | Where | Effect |
-|---|---|---|
-| **Calldata + events instead of storage for the list** | escrow | ~20k → ~8 gas/byte per entry; the single biggest saving |
-| **Packed 36-byte payload** (`address‖uint128`) | both | minimal calldata per recipient |
-| **Assembly calldata decode** | both | avoids ABI-decode overhead in the hot loop |
-| **`unchecked` accumulators** | both | counters/sums that provably can't overflow |
-| **Minimal-proxy clones (EIP-1167)** | escrow | per-distribution isolation at a fraction of full-deploy gas |
-| **Bitmap for chunk-executed flags** | escrow | one slot covers 256 chunks |
-| **Chunked execution** | both | keeps any single tx under block gas limits; chunk size derived from measured Monad gas |
+| Technique                                             | Where  | Effect                                                                                 |
+| ----------------------------------------------------- | ------ | -------------------------------------------------------------------------------------- |
+| **Calldata + events instead of storage for the list** | escrow | ~20k → ~8 gas/byte per entry; the single biggest saving                                |
+| **Packed 36-byte payload** (`address‖uint128`)        | both   | minimal calldata per recipient                                                         |
+| **Assembly calldata decode**                          | both   | avoids ABI-decode overhead in the hot loop                                             |
+| **`unchecked` accumulators**                          | both   | counters/sums that provably can't overflow                                             |
+| **Minimal-proxy clones (EIP-1167)**                   | escrow | per-distribution isolation at a fraction of full-deploy gas                            |
+| **Bitmap for chunk-executed flags**                   | escrow | one slot covers 256 chunks                                                             |
+| **Chunked execution**                                 | both   | keeps any single tx under block gas limits; chunk size derived from measured Monad gas |
 
-**The open item:** `MIN_GAS_PER_TRANSFER` must be *measured* on Monad, not extrapolated. Local marginal cost is ~28.6k/transfer; the naive "×4 for Monad cold access" is invalid because that penalty applies to cold-access opcodes, not the ~20k SSTORE that dominates a fresh-balance credit. Too high a floor taxes every run (that gas is paid, not refunded); too low starves real transfers. Blocks mainnet. See `contracts/test/Multisend.gas.t.sol`.
+**The open item:** `MIN_GAS_PER_TRANSFER` must be _measured_ on Monad, not extrapolated. Local marginal cost is ~28.6k/transfer; the naive "×4 for Monad cold access" is invalid because that penalty applies to cold-access opcodes, not the ~20k SSTORE that dominates a fresh-balance credit. Too high a floor taxes every run (that gas is paid, not refunded); too low starves real transfers. Blocks mainnet. See `contracts/test/Multisend.gas.t.sol`.
 
 ---
 
 ## 7. Security
 
-| Property | Mechanism |
-|---|---|
-| **No custody (MVP)** | direct `sender → recipient` transfers; contract balance provably always zero — nothing to drain. |
-| **No admin over funds** | `Multisend` has no owner; the factory can never touch a funded `Distribution`. |
-| **Reentrancy** | guard on every state-touching external function; checks-effects-interactions (chunk marked executed before transferring). |
-| **Malicious/non-standard tokens** | low-level `call` + manual return decode tolerates no-return (USDT-class), `false`-return, and garbage-return tokens; fee-on-transfer/rebasing rejected at funding via balance-delta; ERC-777/callback tokens excluded (callback reentrancy vector). |
-| **No self-callable transfer helper** | using a low-level call instead of try/catch avoids exposing an external transfer function that, if its guard were ever wrong, would drain every wallet that approved the contract. |
-| **False-failure griefing** | gas floor per transfer. In escrow this is a *security* control (execution is permissionless — an attacker could otherwise mark a whole payroll "failed" with one cheap tx); in the MVP it's a *correctness* control (only the caller's own tokens move, so no griefing vector, but a low gas limit could still mislabel results). |
-| **Replay / cross-contract confusion** | chunk hash binds `address(this)` and `chunkIndex`; CREATE2 `(creator, salt)` guards double-funding. |
-| **Privileged ops** | factory owner is a Safe multisig from day one, testnet included; pause affects only new-creation and emits loudly. |
+| Property                              | Mechanism                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **No custody (MVP)**                  | direct `sender → recipient` transfers; contract balance provably always zero — nothing to drain.                                                                                                                                                                                                                                  |
+| **No admin over funds**               | `Multisend` has no owner; the factory can never touch a funded `Distribution`.                                                                                                                                                                                                                                                    |
+| **Reentrancy**                        | guard on every state-touching external function; checks-effects-interactions (chunk marked executed before transferring).                                                                                                                                                                                                         |
+| **Malicious/non-standard tokens**     | low-level `call` + manual return decode tolerates no-return (USDT-class), `false`-return, and garbage-return tokens; fee-on-transfer/rebasing rejected at funding via balance-delta; ERC-777/callback tokens excluded (callback reentrancy vector).                                                                               |
+| **No self-callable transfer helper**  | using a low-level call instead of try/catch avoids exposing an external transfer function that, if its guard were ever wrong, would drain every wallet that approved the contract.                                                                                                                                                |
+| **False-failure griefing**            | gas floor per transfer. In escrow this is a _security_ control (execution is permissionless — an attacker could otherwise mark a whole payroll "failed" with one cheap tx); in the MVP it's a _correctness_ control (only the caller's own tokens move, so no griefing vector, but a low gas limit could still mislabel results). |
+| **Replay / cross-contract confusion** | chunk hash binds `address(this)` and `chunkIndex`; CREATE2 `(creator, salt)` guards double-funding.                                                                                                                                                                                                                               |
+| **Privileged ops**                    | factory owner is a Safe multisig from day one, testnet included; pause affects only new-creation and emits loudly.                                                                                                                                                                                                                |
 
-**Verification plan:** Foundry unit + fuzz + invariant suites; Slither in CI; external audit before mainnet. Governing invariant for escrow: *a chunk execution either records true outcomes or reverts entirely.*
+**Verification plan:** Foundry unit + fuzz + invariant suites; Slither in CI; external audit before mainnet. Governing invariant for escrow: _a chunk execution either records true outcomes or reverts entirely._
 
 ---
 
@@ -183,30 +184,30 @@ Monad charges on **`gas_limit`, not gas used**, so over-provisioning is a real c
 
 **Deliberately immutable. No proxies, no upgradeability, anywhere.**
 
-| Contract | Strategy | Why |
-|---|---|---|
-| `Multisend` | Redeploy + repoint frontend | Stateless and holds no funds, so replacement is free — no migration, no state to carry. A new version is a new address; the old one keeps working for anyone still pointed at it. |
-| `Distribution` clones | Immutable forever | They hold user funds. An upgradeable escrow means an admin key that *can* change the rules under which funds are held — the exact custody risk the product disclaims. |
-| `DistributionFactory` | Non-upgradeable; points *new* clones at a new implementation | The factory can adopt a fixed implementation for future distributions, but **live distributions are frozen**. |
+| Contract              | Strategy                                                     | Why                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Multisend`           | Redeploy + repoint frontend                                  | Stateless and holds no funds, so replacement is free — no migration, no state to carry. A new version is a new address; the old one keeps working for anyone still pointed at it. |
+| `Distribution` clones | Immutable forever                                            | They hold user funds. An upgradeable escrow means an admin key that _can_ change the rules under which funds are held — the exact custody risk the product disclaims.             |
+| `DistributionFactory` | Non-upgradeable; points _new_ clones at a new implementation | The factory can adopt a fixed implementation for future distributions, but **live distributions are frozen**.                                                                     |
 
-**The explicit trade this makes:** a bug found post-launch **cannot be patched for in-flight distributions** — only for new ones. This is stated as a product promise, not hidden. Immutability is chosen over upgradeability because for a fund-holding contract, an upgrade key is itself the largest attack surface, and "no one can change the rules after you fund" is a stronger guarantee than "we can fix bugs." Mitigations live *before* deployment (audit, testnet bake-in, size caps), not after.
+**The explicit trade this makes:** a bug found post-launch **cannot be patched for in-flight distributions** — only for new ones. This is stated as a product promise, not hidden. Immutability is chosen over upgradeability because for a fund-holding contract, an upgrade key is itself the largest attack surface, and "no one can change the rules after you fund" is a stronger guarantee than "we can fix bugs." Mitigations live _before_ deployment (audit, testnet bake-in, size caps), not after.
 
 ---
 
 ## 9. Edge cases
 
-| Case | Handling |
-|---|---|
-| Duplicate recipient in one distribution | Legal by design (pay someone twice intentionally); validation warns; retry keyed by position, not address, so the same address failing in two chunks is tracked independently. |
-| Recipient is a contract that reverts on receipt | Isolated failure; funds stay with sender/escrow; message distinguishes "recipient rejected" from "Distro failed." |
-| Token pauses between funding and execution (escrow) | Every transfer fails; run looks broken but isn't — retry-later + reclaim recover it; UI must attribute it to the token. |
-| `executeAfter` in the past at creation | Legal — equals "execute now." |
-| Zero-amount entry | Rejected at import (wasteful no-op). |
-| Zero-address recipient | Reverts the whole call — refusing to burn funds. |
-| Creator's balance drops below total between commit and fund | `fund()` reverts cleanly; dashboard should catch it first. |
-| Last entry's amount read past calldata end | Assembly decode shifts out-of-range bytes to zero — tested explicitly. |
-| Nobody ever executes a funded distribution (escrow) | Post-grace `reclaim()` — the escape hatch that prevents permanent fund stranding. |
-| Distribution too large to commit in one tx | Multi-tx commit; a defined ceiling with a clear error, not a wallet failure at tx 47 of 60. |
+| Case                                                        | Handling                                                                                                                                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Duplicate recipient in one distribution                     | Legal by design (pay someone twice intentionally); validation warns; retry keyed by position, not address, so the same address failing in two chunks is tracked independently. |
+| Recipient is a contract that reverts on receipt             | Isolated failure; funds stay with sender/escrow; message distinguishes "recipient rejected" from "Distro failed."                                                              |
+| Token pauses between funding and execution (escrow)         | Every transfer fails; run looks broken but isn't — retry-later + reclaim recover it; UI must attribute it to the token.                                                        |
+| `executeAfter` in the past at creation                      | Legal — equals "execute now."                                                                                                                                                  |
+| Zero-amount entry                                           | Rejected at import (wasteful no-op).                                                                                                                                           |
+| Zero-address recipient                                      | Reverts the whole call — refusing to burn funds.                                                                                                                               |
+| Creator's balance drops below total between commit and fund | `fund()` reverts cleanly; dashboard should catch it first.                                                                                                                     |
+| Last entry's amount read past calldata end                  | Assembly decode shifts out-of-range bytes to zero — tested explicitly.                                                                                                         |
+| Nobody ever executes a funded distribution (escrow)         | Post-grace `reclaim()` — the escape hatch that prevents permanent fund stranding.                                                                                              |
+| Distribution too large to commit in one tx                  | Multi-tx commit; a defined ceiling with a clear error, not a wallet failure at tx 47 of 60.                                                                                    |
 
 ---
 
@@ -214,9 +215,9 @@ Monad charges on **`gas_limit`, not gas used**, so over-provisioning is a real c
 
 The philosophy: **isolate what should be isolated, revert what should be atomic, never lie about either.**
 
-- **Per-recipient failures are isolated, not fatal.** One blocklisted address (USDC-class) must never revert a payroll for everyone else. Failed entries are recorded and emitted; their funds stay with the sender (MVP) or in escrow for retry (escrow). *"Retry failed transfers"* is in the PRD's problem statement — this is core behavior, not an edge case.
+- **Per-recipient failures are isolated, not fatal.** One blocklisted address (USDC-class) must never revert a payroll for everyone else. Failed entries are recorded and emitted; their funds stay with the sender (MVP) or in escrow for retry (escrow). _"Retry failed transfers"_ is in the PRD's problem statement — this is core behavior, not an edge case.
 - **Retry is not a special mechanism.** MVP: a second `distribute` with the failed subset. Escrow: `retry` with the failed positions. Already-paid recipients are never paid twice.
-- **Structural failures are atomic.** A ragged payload, an empty payload, a zero recipient, a non-contract token, or insufficient gas reverts the *entire* call and writes nothing — a half-applied structural error is worse than none.
+- **Structural failures are atomic.** A ragged payload, an empty payload, a zero recipient, a non-contract token, or insufficient gas reverts the _entire_ call and writes nothing — a half-applied structural error is worse than none.
 - **The system never records a false outcome.** The gas floor exists precisely so "recorded as failed" always means "genuinely failed," never "the executor under-provisioned gas." This is the difference between a trustworthy result set and a misleading one.
 - **Undeliverable funds are always recoverable** (escrow): `reclaim` sweeps what couldn't be delivered; nothing is ever permanently stuck, and no admin is needed to unstick it.
 

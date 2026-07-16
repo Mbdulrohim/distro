@@ -38,6 +38,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F2.
 
 **Files.**
+
 - `contracts/script/DeployMultisend.s.sol` (new) — Foundry deploy script (Safe-aware; see monskills `wallet`).
 - `contracts/test/Multisend.gas.t.sol` (exists) — extend to run against a Monad fork.
 - `contracts/deployments/monad-testnet.json` (new) — record address + block.
@@ -50,6 +51,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Frontend changes.** `contracts.ts` exposes `MULTISEND_ADDRESS` keyed by chain id; nothing consumes it yet.
 
 **Testing.**
+
 - Fork test against a Monad RPC measuring real per-transfer gas for a standard ERC-20.
 - Re-run `forge test` (31 tests) green after the constant change.
 - Manual: one real testnet distribution to 3 addresses; confirm `Paid` events in the receipt.
@@ -65,6 +67,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F1 (JWT carries the wallet address RLS keys on).
 
 **Files.**
+
 - `supabase/migrations/0001_tier1_schema.sql` (new).
 - `supabase/migrations/0002_rls_policies.sql` (new).
 - `supabase/tests/rls.test.sql` (new) — cross-tenant attack tests.
@@ -77,8 +80,9 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Frontend changes.** None (types only).
 
 **Testing.**
-- RLS: a JWT for wallet A cannot select/update wallet B's distributions, transactions, recipients (the attack tests must *fail to read*).
-- Constraint tests: `amount = 2^128` rejected; duplicate `(user, salt)` rejected; duplicate `(distribution, batch, index)` rejected; same `(distribution, address)` twice *accepted*.
+
+- RLS: a JWT for wallet A cannot select/update wallet B's distributions, transactions, recipients (the attack tests must _fail to read_).
+- Constraint tests: `amount = 2^128` rejected; duplicate `(user, salt)` rejected; duplicate `(distribution, batch, index)` rejected; same `(distribution, address)` twice _accepted_.
 - Cascade/restrict: deleting a distribution removes its recipients; deleting a user with distributions is blocked.
 
 **Definition of Done.** Migrations apply cleanly on a fresh Supabase project; RLS on for every table; anon client has no write grant on state-transitioning columns; cross-tenant tests are in CI and green; a deliberately malformed insert is rejected by a check, not stored.
@@ -92,6 +96,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F1.
 
 **Files.**
+
 - `web/src/app/globals.css` (edit) — wire semantic tokens; **remove the leftover `sidebar-primary` purple** (DESIGN.md Don't).
 - `web/src/components/layout/app-header.tsx` (exists — extend: nav links, wallet menu).
 - `web/src/components/layout/network-banner.tsx` (new) — blocking wrong-network banner.
@@ -106,6 +111,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Frontend changes.** Header shows the wallet chip state machine (Loading → Connect → Check your wallet → address · Disconnect); network indicator silent on 143, blocking banner otherwise with one-click switch; Receipts/Settings under the wallet `▾`; theme toggle. Applies status-badge, button, and z-index vocabularies from DESIGN.md.
 
 **Testing.**
+
 - Component tests: header renders each wallet state; banner appears only off-mainnet.
 - a11y: keyboard-navigable nav + menu; focus-visible rings; `prefers-reduced-motion` respected.
 - Contrast check on the wired tokens (AA).
@@ -121,6 +127,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F4.
 
 **Files.**
+
 - `web/src/app/api/distributions/route.ts` (POST create draft, GET list).
 - `web/src/app/api/distributions/[id]/route.ts` (GET detail, DELETE draft).
 - `web/src/app/api/distributions/[id]/recipients/route.ts` (GET paginated).
@@ -136,6 +143,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Frontend changes.** react-query hooks (`useDistributions`, `useDistribution`, `useCreateDistribution`, …) — consumed by F8–F14.
 
 **Testing.**
+
 - Route tests: create returns a draft scoped to the caller; another wallet's id 404s (RLS-backed).
 - Idempotency: re-POSTing a confirmed tx hash doesn't duplicate rows.
 - Validation: server rejects payloads the client would (defense in depth); CSV endpoint rejects formula-injection and oversize.
@@ -152,6 +160,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** None (pure TS); pairs with F6's server use.
 
 **Files.**
+
 - `web/src/lib/recipients/parse.ts` — CSV/paste → rows.
 - `web/src/lib/recipients/validate.ts` — address/amount/dupe/balance/`uint128` checks → structured results.
 - `web/src/lib/recipients/encode.ts` — rows → `address‖uint128` payload (the normative encoding), + batch splitter by gas budget.
@@ -164,6 +173,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Frontend changes.** None directly (consumed by F9/F11).
 
 **Testing.**
+
 - Unit: valid/invalid addresses, decimals→base-units round-trip, amounts over `uint128`, zero amounts, duplicates, whitespace/BOM/CRLF, huge files.
 - **Cross-check against Solidity:** encode a payload in TS, assert it hashes/decodes identically to the contract (a Foundry differential test or a fixture shared with `Multisend.t.sol`).
 - Batch splitter: N recipients → correct batch count for a given per-transfer gas + block budget.
@@ -179,6 +189,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F5, F6, F7, wagmi/viem.
 
 **Files.**
+
 - `web/src/app/(dashboard)/dashboard/new/page.tsx` (new — hosts the whole stepped flow).
 - `web/src/components/create/step-details.tsx`.
 - `web/src/lib/tokens/useToken.ts` (read symbol/decimals/balance; detect non-contract; heuristics for fee-on-transfer).
@@ -203,6 +214,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F7, F8.
 
 **Files.**
+
 - `web/src/components/create/step-import.tsx`.
 - `web/src/components/recipients/recipient-table.tsx` (virtualized; reused in Details).
 - calls `web/src/app/api/uploads/csv` (F6) for authoritative parse + Storage of the original.
@@ -226,6 +238,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F9.
 
 **Files.**
+
 - `web/src/components/create/step-review.tsx`.
 - `web/src/components/create/validation-summary.tsx`.
 
@@ -248,6 +261,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Dependencies.** F3 (address + gas), F10.
 
 **Files.**
+
 - `web/src/components/create/step-send.tsx`.
 - `web/src/lib/distributions/execute.ts` (approve, then per-batch `distribute`; parse `Paid`/`PaymentFailed` from each receipt).
 - `web/src/lib/distributions/receipt.ts` (decode events → recipient status updates).
@@ -260,6 +274,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 **Frontend changes.** Two designed phases; per-tx `submitted` vs `confirmed` always distinct with hash + explorer link; live tally; mid-run rejection states who is/isn't paid; on completion → Distribution Details.
 
 **Testing.**
+
 - E2E on testnet fork: 3 recipients incl. one guaranteed-fail (blocklist mock) → 2 paid / 1 failed reflected in DB.
 - Batching: a list forcing 2 txs runs both; partial completion if the second is rejected.
 - Receipt parse maps every event to the right row by `index_in_batch`.
@@ -380,11 +395,11 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 
 Each needs the escrow decisions in [ROADMAP.md](ROADMAP.md) (O1 irrevocable, O2 incentive, O3 recurring shape) and/or the monetization basis. Full field-by-field specs to be written when they're next, not now — sequencing only:
 
-- **F18 Indexer** — standalone long-running service; watches escrow events; reorg-safe, idempotent (`(tx_hash, log_index)`); reconciliation job; rebuild-from-chain. *Dep: F19.*
-- **F19 Escrow contracts** — `DistributionFactory` + `Distribution` per [CONTRACT_SPEC.md](CONTRACT_SPEC.md); the invariant + fuzz suite; **external audit**. *Dep: O1/O2, F3 gas.*
-- **F20 Scheduling UI** — `executeAfter`, fund-decoupled flow, cancel/reclaim, the **unfunded-scheduled warning** (UX_SPEC's sharpest edge), timezone-safe pickers. *Dep: F19, F18.*
-- **F21 Templates** — saved recipient lists; "Use" seeds Create at Import; never auto-pays. *Dep: F9; DB `templates` + `template_recipients`.*
-- **F22 Notifications** — email on complete/failure and unfunded-scheduled; `notification_prefs` table; worker. *Dep: F18/F20.*
+- **F18 Indexer** — standalone long-running service; watches escrow events; reorg-safe, idempotent (`(tx_hash, log_index)`); reconciliation job; rebuild-from-chain. _Dep: F19._
+- **F19 Escrow contracts** — `DistributionFactory` + `Distribution` per [CONTRACT_SPEC.md](CONTRACT_SPEC.md); the invariant + fuzz suite; **external audit**. _Dep: O1/O2, F3 gas._
+- **F20 Scheduling UI** — `executeAfter`, fund-decoupled flow, cancel/reclaim, the **unfunded-scheduled warning** (UX_SPEC's sharpest edge), timezone-safe pickers. _Dep: F19, F18._
+- **F21 Templates** — saved recipient lists; "Use" seeds Create at Import; never auto-pays. _Dep: F9; DB `templates` + `template_recipients`._
+- **F22 Notifications** — email on complete/failure and unfunded-scheduled; `notification_prefs` table; worker. _Dep: F18/F20._
 
 ---
 
@@ -392,5 +407,5 @@ Each needs the escrow decisions in [ROADMAP.md](ROADMAP.md) (O1 irrevocable, O2 
 
 1. Pick any feature whose dependencies are ✅.
 2. Build strictly to its eight fields; if a field says "None," that's a guarantee, not an omission (e.g. no MVP UI feature touches Solidity).
-3. A feature is not done until its **Definition of Done** checklist passes *and* CI (F0's `ci.yml`: forge fmt/build/test + web lint/typecheck/build) is green.
+3. A feature is not done until its **Definition of Done** checklist passes _and_ CI (F0's `ci.yml`: forge fmt/build/test + web lint/typecheck/build) is green.
 4. When a field is under-specified for a decision you hit, it belongs in one of the open decisions in [ROADMAP.md](ROADMAP.md) — resolve it there, don't guess inline.

@@ -4,11 +4,7 @@ import { parseSiweMessage } from "viem/siwe";
 import { getAddress } from "viem";
 import { verifySignIn, MONAD_MAINNET_CHAIN_ID } from "@/lib/auth/siwe";
 import { createSessionToken } from "@/lib/auth/session";
-import {
-  NONCE_COOKIE,
-  SESSION_COOKIE,
-  SESSION_TTL_SECONDS,
-} from "@/lib/auth/constants";
+import { NONCE_COOKIE, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/constants";
 
 /**
  * Verify a signed SIWE message and, on success, issue a session cookie.
@@ -44,10 +40,7 @@ export async function POST(request: Request) {
   // Enforce mainnet-only before spending a verification round-trip.
   const parsed = parseSiweMessage(message);
   if (parsed.chainId !== MONAD_MAINNET_CHAIN_ID) {
-    return NextResponse.json(
-      { error: "Sign-in must be on Monad Mainnet." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Sign-in must be on Monad Mainnet." }, { status: 400 });
   }
   if (!parsed.address) {
     return NextResponse.json({ error: "Malformed SIWE message." }, { status: 400 });
@@ -63,10 +56,7 @@ export async function POST(request: Request) {
   });
 
   if (!valid) {
-    return NextResponse.json(
-      { error: "Signature verification failed." },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Signature verification failed." }, { status: 401 });
   }
 
   // Single-use nonce: clear it so the same signature can't be replayed.

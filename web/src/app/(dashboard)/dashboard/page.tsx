@@ -26,9 +26,7 @@ export default async function DashboardPage() {
       <div className="space-y-6">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            You are signed in on Monad Mainnet.
-          </p>
+          <p className="text-sm text-muted-foreground">You are signed in on Monad Mainnet.</p>
         </div>
 
         <dl className="grid gap-4 rounded-lg border border-border p-5">

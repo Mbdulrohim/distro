@@ -94,11 +94,13 @@ The working home: what's recent, what needs attention, and the way to start.
 One route, client-driven steps, persistent progress rail — a wallet round-trip never loses work. Steps 1→4 then Execute.
 
 ### Step rail (persistent across all steps)
+
 ```
    ( • Details )──( 2 Import )──( 3 Review )──( 4 Send )
 ```
 
 ### Step 1 · Details
+
 ```
 +──────────────────────────────────────────────────────────────────+
 |  ← Back to dashboard                          Draft saved ✓        |
@@ -119,9 +121,11 @@ One route, client-driven steps, persistent progress rail — a wallet round-trip
 |                                         until token resolves)      |
 +──────────────────────────────────────────────────────────────────+
 ```
-States: token *resolving* ("Reading token…"), *resolved* (symbol/decimals/balance shown), *not an ERC-20* (inline error, blocks), *unsupported* (fee-on-transfer/rebasing → explains, blocks).
+
+States: token _resolving_ ("Reading token…"), _resolved_ (symbol/decimals/balance shown), _not an ERC-20_ (inline error, blocks), _unsupported_ (fee-on-transfer/rebasing → explains, blocks).
 
 ### Step 2 · Import recipients
+
 ```
 +──────────────────────────────────────────────────────────────────+
 |  New distribution                    Draft saved ✓                 |
@@ -145,9 +149,11 @@ States: token *resolving* ("Reading token…"), *resolved* (symbol/decimals/bala
 |  [ Clear all ]                              [ Continue → ]         |
 +──────────────────────────────────────────────────────────────────+
 ```
-States: *parsing* (progress for big files), *unreadable/empty* (inline error + template link). Rows editable/removable inline. `[ Continue ]` disabled while blocking errors exist.
+
+States: _parsing_ (progress for big files), _unreadable/empty_ (inline error + template link). Rows editable/removable inline. `[ Continue ]` disabled while blocking errors exist.
 
 ### Step 3 · Review (validation + the irreversibility moment)
+
 ```
 +──────────────────────────────────────────────────────────────────+
 |  New distribution                                                  |
@@ -176,9 +182,11 @@ States: *parsing* (progress for big files), *unreadable/empty* (inline error + t
 |  [ Send a $1 test first ]              [ Continue to send → ]      |
 +──────────────────────────────────────────────────────────────────+
 ```
+
 `[ Continue ]` stays disabled until errors are clear **and** the checkbox is ticked. Errors block; warnings (duplicates) inform. Insufficient balance → its own prominent blocking row with the shortfall.
 
 ### Step 4 · Send (execution)
+
 ```
 +──────────────────────────────────────────────────────────────────+
 |  Sending March Payroll                                             |
@@ -200,6 +208,7 @@ States: *parsing* (progress for big files), *unreadable/empty* (inline error + t
 |  Keep this tab open until all transactions confirm.               |
 +──────────────────────────────────────────────────────────────────+
 ```
+
 `submitted` and `confirmed` are always visually distinct — a mining tx never reads as done. Wallet rejection mid-run → clear statement of who is/isn't paid + resume/stop. On all-confirmed → Distribution Details.
 
 ---
@@ -296,7 +305,9 @@ Reusable recipient lists — the honest, low-risk form of "recurring" (monthly p
 |  +──────────────────────────────────────────────────────────── + |
 +──────────────────────────────────────────────────────────────────+
 ```
+
 **Edit / create a template**
+
 ```
 +──────────────────────────────────────────────────────────────────+
 |  ← Templates                                                       |
@@ -311,6 +322,7 @@ Reusable recipient lists — the honest, low-risk form of "recurring" (monthly p
 |  +──────────────────────────────────────────────────────────── + |
 +──────────────────────────────────────────────────────────────────+
 ```
+
 - `[ Use → ]` seeds a new Create-Distribution at Step 2 with the list pre-filled — the user still picks the token, reviews, and signs.
 - **Empty:** "Save any distribution as a template to reuse its recipients." + pointer to the `···` action on a distribution.
 - `···`: Rename, Duplicate, Delete.
@@ -348,6 +360,7 @@ Thin by design — a non-custodial tool has little to configure.
 |  | [ Export all history (CSV) ]                                   |
 +──────────────────────────────────────────────────────────────────+
 ```
+
 No password, no billing (MVP), no API keys. Wrong-network here mirrors the global banner with a one-click switch.
 
 ---
@@ -357,6 +370,7 @@ No password, no billing (MVP), no API keys. Wrong-network here mirrors the globa
 Proof-of-distribution: a clean, exportable record per distribution for the creator's own accounting/audit — every payment with its onchain transaction. Not a new data source; a formatted view over a completed distribution.
 
 **Receipts index**
+
 ```
 +──────────────────────────────────────────────────────────────────+
 |  Receipts                                      [ ⇩ Export all ]   |
@@ -370,7 +384,9 @@ Proof-of-distribution: a clean, exportable record per distribution for the creat
 |  +──────────────────────────────────────────────────────────── + |
 +──────────────────────────────────────────────────────────────────+
 ```
+
 **Single receipt**
+
 ```
 +──────────────────────────────────────────────────────────────────+
 |  ← Receipts                          [ ⇩ CSV ]  [ ⇩ PDF ]  [Print]|
@@ -393,6 +409,7 @@ Proof-of-distribution: a clean, exportable record per distribution for the creat
 |   Every line verifiable onchain. Generated by Distro.             |
 +──────────────────────────────────────────────────────────────────+
 ```
+
 - Reachable from Distribution Details (`[ Download receipt ]`) and its own index.
 - **CSV** for spreadsheets, **PDF/Print** for filing. Failed rows included and marked — a receipt tells the whole truth, not just the successes.
 

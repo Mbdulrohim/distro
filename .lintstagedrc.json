@@ -1,6 +1,8 @@
 {
   "web/**/*.{ts,tsx}": [
-    "node web/node_modules/eslint/bin/eslint.js --config web/eslint.config.mjs --fix --no-warn-ignored"
+    "node web/node_modules/eslint/bin/eslint.js --config web/eslint.config.mjs --fix --no-warn-ignored",
+    "prettier --write"
   ],
+  "**/*.{css,json,md,mjs,yml,yaml}": ["prettier --write"],
   "contracts/**/*.sol": ["bash -c 'cd contracts && forge fmt'"]
 }

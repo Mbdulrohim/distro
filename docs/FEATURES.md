@@ -22,14 +22,14 @@
 
 - **Execute now** — run as soon as funding confirms.
 - **Execute later** — pick a future date/time; the escrow enforces it onchain (`executeAfter`).
-- Clear display of scheduled time in the user's local timezone *and* UTC — payroll gets sent to the wrong day otherwise.
+- Clear display of scheduled time in the user's local timezone _and_ UTC — payroll gets sent to the wrong day otherwise.
 - **Cancel + full refund any time before execution begins** — gated on execution progress, not the clock, so a creator can call off Friday's payroll on Friday morning.
   - This means a scheduled distribution is a **promise, not a guarantee** — right for payroll, questionable for bounties/grants where credible commitment is the point. Whether v1 offers an opt-in irrevocable mode is an open decision (O1 in [CONTRACT_SPEC.md](CONTRACT_SPEC.md)) that cannot be retrofitted into an immutable contract.
 
 ## Automation
 
 - Distro's keeper triggers scheduled distributions automatically — a **convenience, not a dependency**. If the keeper is down, the creator (or anyone) can trigger the run themselves; the dashboard always exposes a manual "Execute now" path.
-- That fallback is only real because the recipient list is emitted onchain — anyone can rebuild a chunk from logs and execute it without Distro's database. Whether a *stranger* would ever bother is a separate question, unresolved (see O2 in [CONTRACT_SPEC.md](CONTRACT_SPEC.md)); today the honest claim is "the creator can always self-serve", not "a keeper ecosystem exists".
+- That fallback is only real because the recipient list is emitted onchain — anyone can rebuild a chunk from logs and execute it without Distro's database. Whether a _stranger_ would ever bother is a separate question, unresolved (see O2 in [CONTRACT_SPEC.md](CONTRACT_SPEC.md)); today the honest claim is "the creator can always self-serve", not "a keeper ecosystem exists".
 - **Retry failed payments** — failures are isolated per recipient, surfaced in the dashboard, and retryable in one click without re-running successful payments.
 - Recurring schedules are **v2** — see [ROADMAP.md](ROADMAP.md).
 
@@ -44,16 +44,21 @@
 ## Cross-cutting
 
 ### Decimals
+
 CSV amounts are entered in **human units** (`100.5`), converted to base units against the token's `decimals` at commit time, and displayed converted back. The ambiguity between the two is a top cause of real-world distribution bugs — the review step shows both.
 
 ### Token support
+
 ERC-20 only in v1. Fee-on-transfer and rebasing tokens are **rejected at funding** (balance-delta check), not silently mishandled. ERC-777/callback tokens are excluded.
 
 ### Network
+
 Monad Mainnet only. A persistent, unmissable network indicator — with real funds at stake, an accidental wrong-network action must be hard to perform.
 
 ### Data
+
 Offchain (Supabase) data is an index/cache over onchain state for fast dashboard queries. **The chain is the source of truth** — the schema must be reconstructable from onchain events plus creator-supplied metadata.
 
 ### Not in v1
+
 Notifications (email/webhook) on completion/failure, team accounts, and public distribution pages — see [ROADMAP.md](ROADMAP.md) and the gaps flagged in [CTO_REVIEW.md](CTO_REVIEW.md).

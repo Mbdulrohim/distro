@@ -1,0 +1,24 @@
+# Dependencies & lockfiles
+node_modules/
+**/node_modules/
+package-lock.json
+web/package-lock.json
+
+# Build output
+web/.next/
+web/out/
+web/next-env.d.ts
+
+# Foundry — formatted by `forge fmt`, not Prettier
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+**/*.sol
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# Misc
+*.log

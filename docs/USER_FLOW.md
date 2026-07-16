@@ -19,7 +19,7 @@
 
 Steps 1–4 as above, then:
 
-5. **Schedule** → pick date/time. Shown in local time *and* UTC to prevent a timezone mistake sending payroll on the wrong day.
+5. **Schedule** → pick date/time. Shown in local time _and_ UTC to prevent a timezone mistake sending payroll on the wrong day.
 6. **Review + commit** — the recipient list is committed onchain; the distribution is now **Ready**.
 7. **Fund whenever you choose**, any time before execution — at commit, or Thursday night for a Friday run. Funding is decoupled from creation, so the creator picks the lock-up window rather than the architecture imposing one.
    - **A Ready-but-unfunded distribution does nothing at its scheduled time.** No revert, no alert from the chain — it simply no-ops. The dashboard carries the entire burden of making this impossible to miss.
@@ -62,5 +62,5 @@ Per [CTO_REVIEW.md](CTO_REVIEW.md), each of these needs a real designed state:
 - Wallet rejection at approve/fund/execute.
 - RPC timeout or transaction stuck pending.
 - Transaction reverted.
-- **Indexer lag** — the gap between "confirmed onchain" and "dashboard updated" needs an explicit *syncing* state, or users assume failure and retry, wasting gas.
+- **Indexer lag** — the gap between "confirmed onchain" and "dashboard updated" needs an explicit _syncing_ state, or users assume failure and retry, wasting gas.
 - Unsupported token detected at funding (fee-on-transfer / rebasing).

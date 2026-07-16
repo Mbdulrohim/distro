@@ -31,7 +31,7 @@ Next.js route handlers backing the dashboard. Auth is SIWE session-cookie based 
 
 ## Execution
 
-Execution itself is **onchain and permissionless** — it is not an API operation. The API only *records and reports* it:
+Execution itself is **onchain and permissionless** — it is not an API operation. The API only _records and reports_ it:
 
 - `GET /api/distributions/:id/status` — execution progress derived from indexed events.
 

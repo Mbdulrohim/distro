@@ -23,9 +23,7 @@ const AUDIENCE = "distro:session";
 function getSecret(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
-    throw new Error(
-      "SESSION_SECRET is missing or too short (need >= 32 chars). See .env.example.",
-    );
+    throw new Error("SESSION_SECRET is missing or too short (need >= 32 chars). See .env.example.");
   }
   return new TextEncoder().encode(secret);
 }
@@ -37,10 +35,7 @@ export interface SessionPayload extends JWTPayload {
   chainId: number;
 }
 
-export async function createSessionToken(
-  address: string,
-  chainId: number,
-): Promise<string> {
+export async function createSessionToken(address: string, chainId: number): Promise<string> {
   return new SignJWT({ address, chainId })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(address)

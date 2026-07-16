@@ -2,24 +2,13 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  useAccount,
-  useConnect,
-  useDisconnect,
-  useSignMessage,
-  useSwitchChain,
-} from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { createSiweMessage } from "viem/siwe";
 import { getAddress } from "viem";
 import { MONAD_MAINNET_CHAIN_ID } from "@/config/chains";
 import { SIWE_STATEMENT } from "@/lib/auth/constants";
-import {
-  fetchSession,
-  fetchNonce,
-  verifySignature,
-  logout as logoutApi,
-} from "@/lib/auth/api";
+import { fetchSession, fetchNonce, verifySignature, logout as logoutApi } from "@/lib/auth/api";
 
 const SESSION_KEY = ["auth", "session"] as const;
 
@@ -49,8 +38,7 @@ export function useAuth() {
       // injected connector; fall back to a fresh instance if absent.
       let account = connectedAddress;
       if (!isConnected || !account) {
-        const connector =
-          connectors.find((c) => c.type === "injected") ?? injected();
+        const connector = connectors.find((c) => c.type === "injected") ?? injected();
         const result = await connectAsync({ connector });
         account = result.accounts[0];
       }
@@ -88,8 +76,7 @@ export function useAuth() {
         // Wallet already disconnected — server session is what matters.
       });
     },
-    onSuccess: () =>
-      queryClient.setQueryData(SESSION_KEY, { address: null }),
+    onSuccess: () => queryClient.setQueryData(SESSION_KEY, { address: null }),
   });
 
   const refresh = useCallback(

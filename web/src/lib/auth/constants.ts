@@ -16,4 +16,5 @@ export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 export const NONCE_TTL_SECONDS = 60 * 10;
 
 /** SIWE statement shown to the user in their wallet when signing in. */
-export const SIWE_STATEMENT = "Sign in to DISTRO. This does not cost gas and does not authorize any transaction.";
+export const SIWE_STATEMENT =
+  "Sign in to DISTRO. This does not cost gas and does not authorize any transaction.";

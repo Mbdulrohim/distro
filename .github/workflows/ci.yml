@@ -6,6 +6,23 @@ on:
   pull_request:
 
 jobs:
+  format:
+    name: Format (Prettier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root dev dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prettier check
+        run: npm run format:check
+
   contracts:
     name: Contracts (Foundry)
     runs-on: ubuntu-latest

@@ -25,12 +25,12 @@ The strategic claim: **the distribution layer teams trust with payroll, because 
 
 Consistency matters more than variety — pick one word per concept and never drift:
 
-| Use | Not |
-|---|---|
-| distribution | campaign, batch, blast |
-| recipients | claimants, users, holders |
-| execute | run, send, fire |
-| scheduled | queued, pending, timed |
+| Use           | Not                                |
+| ------------- | ---------------------------------- |
+| distribution  | campaign, batch, blast             |
+| recipients    | claimants, users, holders          |
+| execute       | run, send, fire                    |
+| scheduled     | queued, pending, timed             |
 | paid / failed | success/error, complete/incomplete |
 
 "Campaign" and "claim" are legacy vocabulary from a superseded model — they should appear nowhere in product copy.

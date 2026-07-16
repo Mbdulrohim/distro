@@ -14,7 +14,7 @@ Instead of manually sending payments to dozens or hundreds of wallets, a user cr
 
 ## Why Distro exists
 
-Blockchain made transferring assets permissionless. It didn't make *distributing* assets efficient. Distro fills that gap.
+Blockchain made transferring assets permissionless. It didn't make _distributing_ assets efficient. Distro fills that gap.
 
 ## Problem
 
@@ -34,12 +34,12 @@ Distro securely executes the distribution onchain while tracking every payment i
 
 ## Product pillars
 
-| Pillar | Meaning |
-|---|---|
-| **Distribution** | Send assets to many recipients efficiently. |
-| **Scheduling** | Execute distributions at a future date and time. |
-| **Automation** | Reduce manual work for recurring payouts. |
-| **Tracking** | Know exactly who has been paid and when. |
+| Pillar           | Meaning                                          |
+| ---------------- | ------------------------------------------------ |
+| **Distribution** | Send assets to many recipients efficiently.      |
+| **Scheduling**   | Execute distributions at a future date and time. |
+| **Automation**   | Reduce manual work for recurring payouts.        |
+| **Tracking**     | Know exactly who has been paid and when.         |
 
 **Transparency:** every distribution is verifiable onchain.
 

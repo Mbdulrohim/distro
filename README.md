@@ -37,27 +37,28 @@ distro/
 
 ## Documentation
 
-| File | What it covers |
-|---|---|
-| [docs/PRD.md](docs/PRD.md) | Product definition, scope, success metrics |
-| [docs/FEATURES.md](docs/FEATURES.md) | Feature set, mapped to the four product pillars |
-| [docs/USER_FLOW.md](docs/USER_FLOW.md) | Step-by-step flows and the failure states that need designing |
-| [docs/CONTRACT_ARCHITECTURE.md](docs/CONTRACT_ARCHITECTURE.md) | Contract-system design across both contracts (responsibilities, storage, events, gas, security, upgrades) |
-| [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md) | Escrow contract's normative spec (state machine, invariants) |
-| [docs/DATABASE.md](docs/DATABASE.md) | Supabase schema, RLS policies, indexes |
-| [docs/API.md](docs/API.md) | Route handlers backing the dashboard |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full system architecture and the reasoning behind each decision |
-| [docs/UX_SPEC.md](docs/UX_SPEC.md) | Every journey, screen, and state (empty/loading/error/success) for the MVP |
-| [docs/WIREFRAMES.md](docs/WIREFRAMES.md) | ASCII wireframes for every page |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Phasing and the decisions that block each phase |
-| [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) | Feature-by-feature build plan (goal, deps, files, tests, DoD) |
-| [docs/BRAND.md](docs/BRAND.md) | Name, voice, vocabulary |
-| [docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md) | Adversarial review — the *why* behind the contract's shape |
-| [docs/CTO_REVIEW.md](docs/CTO_REVIEW.md) | Scope and product-fit review |
+| File                                                             | What it covers                                                                                            |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [docs/PRD.md](docs/PRD.md)                                       | Product definition, scope, success metrics                                                                |
+| [docs/FEATURES.md](docs/FEATURES.md)                             | Feature set, mapped to the four product pillars                                                           |
+| [docs/USER_FLOW.md](docs/USER_FLOW.md)                           | Step-by-step flows and the failure states that need designing                                             |
+| [docs/CONTRACT_ARCHITECTURE.md](docs/CONTRACT_ARCHITECTURE.md)   | Contract-system design across both contracts (responsibilities, storage, events, gas, security, upgrades) |
+| [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md)                   | Escrow contract's normative spec (state machine, invariants)                                              |
+| [docs/DATABASE.md](docs/DATABASE.md)                             | Supabase schema, RLS policies, indexes                                                                    |
+| [docs/API.md](docs/API.md)                                       | Route handlers backing the dashboard                                                                      |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                     | Full system architecture and the reasoning behind each decision                                           |
+| [docs/UX_SPEC.md](docs/UX_SPEC.md)                               | Every journey, screen, and state (empty/loading/error/success) for the MVP                                |
+| [docs/WIREFRAMES.md](docs/WIREFRAMES.md)                         | ASCII wireframes for every page                                                                           |
+| [docs/ROADMAP.md](docs/ROADMAP.md)                               | Phasing and the decisions that block each phase                                                           |
+| [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) | Feature-by-feature build plan (goal, deps, files, tests, DoD)                                             |
+| [docs/BRAND.md](docs/BRAND.md)                                   | Name, voice, vocabulary                                                                                   |
+| [docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md)       | Adversarial review — the _why_ behind the contract's shape                                                |
+| [docs/CTO_REVIEW.md](docs/CTO_REVIEW.md)                         | Scope and product-fit review                                                                              |
 
 ## Development
 
 **Contracts**
+
 ```bash
 cd contracts
 forge build
@@ -65,6 +66,7 @@ forge test
 ```
 
 **Web**
+
 ```bash
 cd web
 npm install

@@ -24,8 +24,7 @@ export default async function MarketingPage({
             Token distribution infrastructure for Monad.
           </h1>
           <p className="text-muted-foreground">
-            Connect your wallet to access the dashboard. DISTRO runs on Monad
-            Mainnet only.
+            Connect your wallet to access the dashboard. DISTRO runs on Monad Mainnet only.
           </p>
         </div>
         <div>

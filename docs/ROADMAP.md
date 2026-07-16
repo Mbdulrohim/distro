@@ -14,9 +14,10 @@
 
 ## Phase 2 — Multisend MVP (current)
 
-Per [CTO_REVIEW.md](CTO_REVIEW.md) S1: escrow, keeper, indexer, and onchain DA all exist to serve *scheduling*, which the PRD's problem statement never asks for. This phase ships the validated pain — bulk, tracking, retry — with none of that machinery.
+Per [CTO_REVIEW.md](CTO_REVIEW.md) S1: escrow, keeper, indexer, and onchain DA all exist to serve _scheduling_, which the PRD's problem statement never asks for. This phase ships the validated pain — bulk, tracking, retry — with none of that machinery.
 
 **Contract — done.** `contracts/src/Multisend.sol`:
+
 - Stateless. Tokens move `msg.sender → recipient` directly, so the contract's balance is always zero — a failed payment simply doesn't happen and the tokens stay with the sender. No refund path, no state machine, no stranded funds.
 - No owner, no pause, no fee: nothing to govern, and being stateless makes it trivially replaceable.
 - Per-recipient failure isolation (one blocklisted address can't revert a payroll run); retry is just a second call with the failed subset.
@@ -24,12 +25,14 @@ Per [CTO_REVIEW.md](CTO_REVIEW.md) S1: escrow, keeper, indexer, and onchain DA a
 - 31 tests: unit, fuzz, reentrancy, gas benchmarks.
 
 **Remaining for MVP:**
+
 - Dashboard: connect → import CSV → validate → review → approve → distribute.
 - Parse results from the execution receipt client-side. **No indexer service** — the transaction's own receipt carries every `Paid`/`PaymentFailed` event.
 - Supabase for history only.
 - Testnet deploy + verification (monskills verification API).
 
 **Blocking mainnet:**
+
 - `MIN_GAS_PER_TRANSFER` must be measured on Monad. The current `100_000` is a conservative placeholder; local marginal cost is ~28.6k, and the naive "×4 for Monad cold access" extrapolation is invalid (that penalty doesn't apply to the ~20k SSTORE that dominates). See `test/Multisend.gas.t.sol`.
 - External audit. Small surface (~100 lines), so this is cheap relative to the escrow.
 
@@ -40,7 +43,7 @@ Per [CTO_REVIEW.md](CTO_REVIEW.md) S1: escrow, keeper, indexer, and onchain DA a
 Only start this once scheduling demand is validated. `Multisend` is untouched by this work; the escrow is a separate contract reusing the same payload encoding.
 
 - `DistributionFactory` + `Distribution` escrow (payload commitment + onchain DA, permissionless execution).
-- Fuzz the spec's invariants — starting with *"a chunk execution either records true outcomes or reverts entirely"*, the gas-griefing invariant. Note that griefing is a real threat **only here**, where execution is permissionless; in `Multisend` the caller can only ever move their own tokens.
+- Fuzz the spec's invariants — starting with _"a chunk execution either records true outcomes or reverts entirely"_, the gas-griefing invariant. Note that griefing is a real threat **only here**, where execution is permissionless; in `Multisend` the caller can only ever move their own tokens.
 - Keeper service + the always-available manual path.
 - Timezone-safe scheduling UI (local + UTC).
 - **Notifications ship with this phase, not later** ([CTO_REVIEW.md](CTO_REVIEW.md) UX1): a Ready-but-unfunded distribution silently no-ops at its scheduled time, the chain gives no signal, and the user is not looking at the dashboard at 9am on payday.
@@ -92,11 +95,11 @@ Ships alongside Phase 3 — these are what make an escrow-based scheduled run ob
 
 4. **O1 — irrevocable mode?** Cancel-any-time makes "scheduled" a promise, not a guarantee. Fine for payroll, wrong for bounties/grants.
 5. **O2 — execution incentive?** Permissionless execution is only real if a non-Distro party is motivated to execute. Either add a gas tip from escrow, or drop the claim and say "the creator self-serves".
-6. **O3 — recurring shape.** Deferring the *feature* is right; deferring this *decision* risks a v2 that cannot reuse v1's audited contract.
+6. **O3 — recurring shape.** Deferring the _feature_ is right; deferring this _decision_ risks a v2 that cannot reuse v1's audited contract.
 
 **Product decisions with no deadline yet, but real consequences:**
 
-7. **Monetization** — rate and *basis*. `Multisend` deliberately ships with no fee hook (it's stateless, so a fee version is a redeploy plus a config change, not a migration). But the *basis* — per recipient, per distribution, or volume — changes the escrow's design, so decide before Phase 3.
+7. **Monetization** — rate and _basis_. `Multisend` deliberately ships with no fee hook (it's stateless, so a fee version is a redeploy plus a config change, not a migration). But the _basis_ — per recipient, per distribution, or volume — changes the escrow's design, so decide before Phase 3.
 8. **Airdrop scope** ([CTO_REVIEW.md](CTO_REVIEW.md) P2). Push is the wrong economics above ~1,000 recipients. Either qualify the claim to community-scale, or plan a claim mode as a distinct product.
 9. Team/org accounts — v1 single-wallet, or multi-user? Retrofitting an `organizations` layer under `distributions` later is a migration, not a feature.
 10. Compliance posture — any address screening before payout?

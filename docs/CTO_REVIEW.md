@@ -6,28 +6,28 @@ Stack: Next.js 15, React, TS, Tailwind, shadcn/ui, wagmi, viem, Foundry, Solidit
 
 > **Supersedes the v1 review** (written before the product definition existed, against a claim-based model that was never Distro). Contract-level findings live in [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) and are not repeated here; this document reviews the **product, scope, and engineering plan**.
 
-The architecture is now sound. My concern is no longer *"is this correct?"* — it's **"is this the right thing to build, and is it the right size?"** Two of the findings below argue we are building substantially more than the stated problem requires.
+The architecture is now sound. My concern is no longer _"is this correct?"_ — it's **"is this the right thing to build, and is it the right size?"** Two of the findings below argue we are building substantially more than the stated problem requires.
 
 ---
 
 ## 🔴 P1 — The stated problem never mentions scheduling, but half the architecture exists to serve it
 
-The PRD's Problem section, in full, is: teams *copy addresses, verify them, enter amounts, repeat transactions, track status, retry failures, and keep records by hand.*
+The PRD's Problem section, in full, is: teams _copy addresses, verify them, enter amounts, repeat transactions, track status, retry failures, and keep records by hand._
 
 Every one of those is about **bulk, tracking, and retry**. Not one is about **timing**. Nobody in that paragraph is complaining that they can't pay people next Friday.
 
-Yet Scheduling is a pillar, and it is the *sole reason* for almost all of the system's complexity:
+Yet Scheduling is a pillar, and it is the _sole reason_ for almost all of the system's complexity:
 
-| Component | Exists because of |
-|---|---|
-| Escrow contract | scheduling (funds must be present while the creator is offline) |
-| Chunk commitment + onchain DA | escrow (a third party must reconstruct the list) |
-| `cancel` / `reclaim` / grace period | escrow (funds can get stuck) |
-| Keeper service + hot wallet + MON reserve monitoring | scheduling |
-| Indexer service | keeper (the creator wasn't present to watch the tx) |
-| The gas-griefing attack surface | permissionless execution, which exists for scheduling |
+| Component                                            | Exists because of                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------- |
+| Escrow contract                                      | scheduling (funds must be present while the creator is offline) |
+| Chunk commitment + onchain DA                        | escrow (a third party must reconstruct the list)                |
+| `cancel` / `reclaim` / grace period                  | escrow (funds can get stuck)                                    |
+| Keeper service + hot wallet + MON reserve monitoring | scheduling                                                      |
+| Indexer service                                      | keeper (the creator wasn't present to watch the tx)             |
+| The gas-griefing attack surface                      | permissionless execution, which exists for scheduling           |
 
-**Delete scheduling and nearly all of it evaporates.** A distribution that executes *now*, while the creator is present and signing, needs no escrow at all — just `approve` + a stateless multisend that pulls via `transferFrom` and pushes. No custody, no state machine, no data-availability problem, no keeper, no reclaim path, no stranded funds.
+**Delete scheduling and nearly all of it evaporates.** A distribution that executes _now_, while the creator is present and signing, needs no escrow at all — just `approve` + a stateless multisend that pulls via `transferFrom` and pushes. No custody, no state machine, no data-availability problem, no keeper, no reclaim path, no stranded funds.
 
 This is not an argument that scheduling is worthless — payroll genuinely wants it. It's an argument that **scheduling is an unvalidated hypothesis carrying the entire cost of the system**, while the validated pain (bulk + tracking + retry) needs almost none of it.
 
@@ -41,23 +41,23 @@ Airdrops appear in the PRD's opening line, its use-case list, and its vision. Bu
 
 **Gas.** In a push model the sender pays for every recipient. At ~50k gas per ERC-20 transfer to a cold address (higher on Monad, where cold state access runs 3–4× Ethereum — must be measured, not assumed):
 
-| Recipients | Sender's execution gas | Commit/DA gas |
-|---|---|---|
-| 200 (payroll) | ~10M | ~58k |
-| 5,000 (community rewards) | ~250M | ~1.4M |
-| 100,000 (real airdrop) | **~5B** | ~29M |
+| Recipients                | Sender's execution gas | Commit/DA gas |
+| ------------------------- | ---------------------- | ------------- |
+| 200 (payroll)             | ~10M                   | ~58k          |
+| 5,000 (community rewards) | ~250M                  | ~1.4M         |
+| 100,000 (real airdrop)    | **~5B**                | ~29M          |
 
 A claim-based airdrop costs the sender ~100k gas total, because each claimant pays their own.
 
 **Claim rates.** Most airdrop allocations are never claimed — commonly only 10–30% are. A claim model means you only spend tokens on people who wanted them. **Push means you pay 100% of the gas and distribute 100% of the tokens, including to the ~75% of wallets that would never have bothered.** You're not just spending more gas; you're spending tokens you'd have kept.
 
-So for a 100k airdrop, push costs the sender orders of magnitude more gas *and* ~4–5× the tokens. This isn't a tuning problem — it's the wrong tool. It is precisely why virtually every large airdrop in the industry is claim-based.
+So for a 100k airdrop, push costs the sender orders of magnitude more gas _and_ ~4–5× the tokens. This isn't a tuning problem — it's the wrong tool. It is precisely why virtually every large airdrop in the industry is claim-based.
 
 Push is genuinely better where recipients are **known, few, and must actually receive the funds without opting in**: payroll, grants, bounties, contributor comp, hackathon prizes, revenue share. That's most of the use-case list — and it's a strong product.
 
-**Recommendation:** qualify the claim. "Airdrops" in Distro means community distributions in the hundreds-to-low-thousands, where push's zero-friction delivery is an advantage. Mass speculative airdrops are **out of scope**, and should be stated as such rather than implied by the marketing. If they later become a target, that's a *claim mode* — a second contract alongside the push engine, not a replacement.
+**Recommendation:** qualify the claim. "Airdrops" in Distro means community distributions in the hundreds-to-low-thousands, where push's zero-friction delivery is an advantage. Mass speculative airdrops are **out of scope**, and should be stated as such rather than implied by the marketing. If they later become a target, that's a _claim mode_ — a second contract alongside the push engine, not a replacement.
 
-> The irony is noted: the pre-definition draft was Merkle-claim-based. Deleting it was still correct — it was specced as *the* model rather than as one mode for one use case.
+> The irony is noted: the pre-definition draft was Merkle-claim-based. Deleting it was still correct — it was specced as _the_ model rather than as one mode for one use case.
 
 ---
 
@@ -74,11 +74,11 @@ Current v1 requires, before a single user is served: escrow contracts + external
 - **No escrow, no commit phase, no DA problem, no state machine, no cancel/reclaim, no stranded funds, no grace period.**
 - Retry = a second `distribute` with the failed subset.
 
-This delivers the entire stated problem — bulk, tracking, retry, records — and it is *dramatically* cheaper to audit, because the attack surface is roughly "does the loop pay the right people."
+This delivers the entire stated problem — bulk, tracking, retry, records — and it is _dramatically_ cheaper to audit, because the attack surface is roughly "does the loop pay the right people."
 
-**Then v1.1 adds scheduling** as a *separate* escrow contract reusing the same payload encoding and execution logic. The multisend contract stays untouched and already-audited. Nothing is thrown away; the escrow's complexity is paid for only once scheduling is validated.
+**Then v1.1 adds scheduling** as a _separate_ escrow contract reusing the same payload encoding and execution logic. The multisend contract stays untouched and already-audited. Nothing is thrown away; the escrow's complexity is paid for only once scheduling is validated.
 
-The current spec is the right *destination*. It is the wrong *first step*.
+The current spec is the right _destination_. It is the wrong _first step_.
 
 ---
 
@@ -86,9 +86,9 @@ The current spec is the right *destination*. It is the wrong *first step*.
 
 Even at full scope, be honest about what "production-ready" implies operationally:
 
-- **Keeper**: a hot wallet holding MON, which must stay above Monad's 10 MON reserve floor or it silently stops sending. Needs funding automation, balance alerting, failure alerting, and someone on call — because its failure mode is *missed payroll*, the one thing the product promises never happens.
+- **Keeper**: a hot wallet holding MON, which must stay above Monad's 10 MON reserve floor or it silently stops sending. Needs funding automation, balance alerting, failure alerting, and someone on call — because its failure mode is _missed payroll_, the one thing the product promises never happens.
 - **Indexer**: a long-running service (not serverless), reorg-safe, idempotent, with a reconciliation job. Its own deploy target, monitoring, and restart semantics.
-- **Audit**: 4–8 weeks lead time and $30–100k, and it must happen *after* the contracts stabilize. This is the long pole — plan the calendar backwards from it.
+- **Audit**: 4–8 weeks lead time and $30–100k, and it must happen _after_ the contracts stabilize. This is the long pole — plan the calendar backwards from it.
 
 The MVP in S1 eliminates the first two entirely and shrinks the third.
 
@@ -98,7 +98,7 @@ The MVP in S1 eliminates the first two entirely and shrinks the third.
 
 The PRD's bar is "zero funds lost." An audit reduces risk; it doesn't eliminate it. For the first mainnet period, a per-distribution cap (and/or an allowlist of early users) bounds the blast radius of an unknown bug to something survivable.
 
-This is cheap to add as a factory parameter now and removable later. Retrofitting it after an incident is not an option, and "we capped exposure during the bake-in period" is a *sellable* trust signal, not an admission of weakness.
+This is cheap to add as a factory parameter now and removable later. Retrofitting it after an incident is not an option, and "we capped exposure during the bake-in period" is a _sellable_ trust signal, not an admission of weakness.
 
 ---
 
@@ -112,13 +112,13 @@ The contract cannot fix this. It is entirely the dashboard's burden, and a dashb
 
 ## 🟡 UX2 — Chunk mechanics must not leak into the product
 
-Chunking is a gas artifact. Users think in *"pay these 400 people."* Commit-across-N-transactions, chunk indices, per-chunk execution, and partial chunk state are all implementation detail. If the UI ever says "chunk 3 of 7 failed," the abstraction has failed.
+Chunking is a gas artifact. Users think in _"pay these 400 people."_ Commit-across-N-transactions, chunk indices, per-chunk execution, and partial chunk state are all implementation detail. If the UI ever says "chunk 3 of 7 failed," the abstraction has failed.
 
 The creator should see: recipients, a total, a status, and failures. One review step, one funding step, one progress bar — even when that's 9 transactions underneath.
 
 ## 🟡 UX3 — Test payment is under-specified for how important it is
 
-[FEATURES.md](FEATURES.md) now lists it, but it needs a real design. The instinct to send $1 before $200k is universal and correct, and it is the *only* non-destructive rehearsal available for an irreversible action. Decide whether it's a separate one-recipient distribution (simple, real, costs a second flow) or a first-chunk-only execution (elegant, but couples to chunk mechanics UX2 says to hide).
+[FEATURES.md](FEATURES.md) now lists it, but it needs a real design. The instinct to send $1 before $200k is universal and correct, and it is the _only_ non-destructive rehearsal available for an irreversible action. Decide whether it's a separate one-recipient distribution (simple, real, costs a second flow) or a first-chunk-only execution (elegant, but couples to chunk mechanics UX2 says to hide).
 
 ## 🟡 UX4 — Decimals remain the highest-probability money bug
 
@@ -149,12 +149,12 @@ Mainnet-only is enforced at sign-in, but a user can switch networks mid-session,
 
 The contract-level findings are resolved in [CONTRACT_SPEC.md](CONTRACT_SPEC.md) v2. Standing items:
 
-- **Supabase RLS is the whole access-control story** — policies are now specified in [DATABASE.md](DATABASE.md); they must ship with tests that *attempt* cross-tenant access. A policy nobody tried to break is untested.
+- **Supabase RLS is the whole access-control story** — policies are now specified in [DATABASE.md](DATABASE.md); they must ship with tests that _attempt_ cross-tenant access. A policy nobody tried to break is untested.
 - **Service-role key never client-side.** `server-only` guards this today; keep it that way.
 - **CSV upload** is an injection/DoS surface: formula injection, unbounded size, malformed encoding. Server-side validation is authoritative; client-side is UX.
 - **Rate-limit** upload and commit-computation endpoints.
 - **SIWE** — domain binding, nonce expiry, replay protection. Implemented; keep the library maintained.
-- **Distro must never hold keys or funds beyond the escrow itself.** The keeper signs *executions*, never *transfers of custody* — worth stating as an invariant in the ops runbook, since a keeper with a hot wallet is exactly where that line gets blurred under pressure.
+- **Distro must never hold keys or funds beyond the escrow itself.** The keeper signs _executions_, never _transfers of custody_ — worth stating as an invariant in the ops runbook, since a keeper with a hot wallet is exactly where that line gets blurred under pressure.
 - **Multisig on the factory from day one**, including testnet, to build the habit before it matters.
 
 ---
@@ -176,6 +176,6 @@ The contract-level findings are resolved in [CONTRACT_SPEC.md](CONTRACT_SPEC.md)
 4. **Move notifications from v2 into the scheduling release (UX1).** Scheduling without an unfunded-warning is a payroll-miss generator.
 5. **Cap exposure for the first mainnet weeks (S3).** Cheap now, impossible retroactively, and a trust signal rather than a weakness.
 6. **Measure Monad gas before writing the contract.** `MIN_GAS_PER_TRANSFER` and chunk size are security parameters; guessed values make the griefing fix decorative.
-7. **Settle monetization's *basis* before the audit.** Not the rate — the basis. Per-recipient vs per-distribution vs volume changes where the hook lives.
+7. **Settle monetization's _basis_ before the audit.** Not the rate — the basis. Per-recipient vs per-distribution vs volume changes where the hook lives.
 8. **Write the RLS cross-tenant tests with the first migration**, not after the first table.
 9. **Plan the calendar backwards from the audit.** It's 4–8 weeks of lead time and the only truly unparallelizable item.

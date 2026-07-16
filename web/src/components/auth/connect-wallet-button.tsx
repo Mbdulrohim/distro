@@ -40,12 +40,7 @@ export function ConnectWalletButton() {
         >
           {truncateAddress(address)}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => signOut()}
-          disabled={isSigningOut}
-        >
+        <Button variant="ghost" size="sm" onClick={() => signOut()} disabled={isSigningOut}>
           {isSigningOut ? <Loader2 className="animate-spin" /> : null}
           Disconnect
         </Button>
@@ -61,9 +56,7 @@ export function ConnectWalletButton() {
       </Button>
       {signInError ? (
         <p className="max-w-64 text-right text-xs text-destructive">
-          {signInError instanceof Error
-            ? signInError.message
-            : "Sign-in failed. Please try again."}
+          {signInError instanceof Error ? signInError.message : "Sign-in failed. Please try again."}
         </p>
       ) : null}
     </div>

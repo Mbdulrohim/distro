@@ -18,7 +18,7 @@ Recipients are **not** users. Distro is a push system: recipients receive tokens
 
 ## Product Purpose
 
-Distro is an onchain distribution engine: it turns repetitive onchain transfers into a single automated workflow on Monad. It exists because blockchain made transferring assets permissionless but never made *distributing* them efficient — teams still copy addresses, repeat transactions, track status by hand, and retry failures manually. Success is a creator going from "connect wallet" to a funded, scheduled distribution in minutes, with every payment tracked in real time and verifiable onchain — and a scheduled payroll run that executes on time even if Distro's own infrastructure is down.
+Distro is an onchain distribution engine: it turns repetitive onchain transfers into a single automated workflow on Monad. It exists because blockchain made transferring assets permissionless but never made _distributing_ them efficient — teams still copy addresses, repeat transactions, track status by hand, and retry failures manually. Success is a creator going from "connect wallet" to a funded, scheduled distribution in minutes, with every payment tracked in real time and verifiable onchain — and a scheduled payroll run that executes on time even if Distro's own infrastructure is down.
 
 ## Positioning
 
@@ -45,4 +45,5 @@ Generic crypto/DeFi visual language: neon gradients, glassmorphism-heavy dashboa
 WCAG AA minimum, given the "enterprise-grade" bar stated for this product. No accessibility requirements beyond that were specified by the user; revisit if specific needs surface.
 
 ---
+
 _Register and personality were defaulted (not user-confirmed) because the initiating question went unanswered. Users/purpose/positioning are now grounded in the user-supplied product definition (2026-07-15). Re-run `/impeccable init` to revise._

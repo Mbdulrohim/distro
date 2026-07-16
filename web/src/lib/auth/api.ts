@@ -21,10 +21,7 @@ export async function fetchNonce(): Promise<string> {
   return nonce;
 }
 
-export async function verifySignature(
-  message: string,
-  signature: string,
-): Promise<string> {
+export async function verifySignature(message: string, signature: string): Promise<string> {
   const res = await fetch("/api/auth/verify", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

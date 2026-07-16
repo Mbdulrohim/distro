@@ -4,13 +4,13 @@ Adversarial review of [CONTRACT_SPEC.md](CONTRACT_SPEC.md), [DATABASE.md](DATABA
 
 Most of this design was decided on the user's behalf after "[No preference]" answers, so it has never been challenged. This document challenges it. Findings are ordered by severity, not by politeness.
 
-**Nothing here is implemented.** These are corrections to make *before* Foundry work starts.
+**Nothing here is implemented.** These are corrections to make _before_ Foundry work starts.
 
-> **Status (2026-07-16): C1, C2, C3, H1, H2, H3, H4, M1, M2, M3, M5 are folded into [CONTRACT_SPEC.md](CONTRACT_SPEC.md) v2 and [DATABASE.md](DATABASE.md).** H1 was resolved more completely than proposed below: because the contract now receives the real payload at commit time (the C1 fix), it hashes *and sums* it, so `totalAmount` is computed onchain rather than trusted from the creator — the failure mode is gone rather than merely loud.
+> **Status (2026-07-16): C1, C2, C3, H1, H2, H3, H4, M1, M2, M3, M5 are folded into [CONTRACT_SPEC.md](CONTRACT_SPEC.md) v2 and [DATABASE.md](DATABASE.md).** H1 was resolved more completely than proposed below: because the contract now receives the real payload at commit time (the C1 fix), it hashes _and sums_ it, so `totalAmount` is computed onchain rather than trusted from the creator — the failure mode is gone rather than merely loud.
 >
 > **Still open:** M4 (token allowlist) and O1–O5, which are decisions rather than corrections. O1 and O2 block implementation and are tracked in [ROADMAP.md](ROADMAP.md).
 >
-> This document is retained as the rationale record — the *why* behind v2's shape. It is not a to-do list.
+> This document is retained as the rationale record — the _why_ behind v2's shape. It is not a to-do list.
 
 ---
 
@@ -25,11 +25,11 @@ It does not. **The recipient list exists only in Distro's private database.** A 
 - No one but Distro can execute the distribution.
 - The escrowed funds are stranded (only the creator's cancel/reclaim path remains).
 - "Works even if your team disappears" is false.
-- "Distro's keeper is a convenience, not a dependency" is false — it is the *only* party able to execute.
+- "Distro's keeper is a convenience, not a dependency" is false — it is the _only_ party able to execute.
 
 The entire justification for choosing escrow over the allowance+relayer model was that it removes Distro as a liveness dependency. Without data availability, escrow reintroduces exactly that dependency, and we paid for it with locked capital and got nothing.
 
-It also breaks a second claim: PRD says every distribution is *verifiable onchain*, and the escrow rationale says recipients can see funds are covered. With only hashes onchain, nobody can verify their own allocation, or that `totalAmount` covers the sum of amounts.
+It also breaks a second claim: PRD says every distribution is _verifiable onchain_, and the escrow rationale says recipients can see funds are covered. With only hashes onchain, nobody can verify their own allocation, or that `totalAmount` covers the sum of amounts.
 
 ### Fix: emit the recipient list as event data at creation
 
@@ -41,11 +41,11 @@ event RecipientsCommitted(uint256 indexed chunkIndex, bytes payload)
 
 Packing `address` (20 bytes) + `uint96` amount (12 bytes) into a single 32-byte word keeps it tight:
 
-| Recipients | Payload | Approx. gas |
-|---|---|---|
-| 100 | 3.2 KB | ~26k |
-| 1,000 | 32 KB | ~260k |
-| 10,000 | 320 KB | ~2.6M (across several creation txs) |
+| Recipients | Payload | Approx. gas                         |
+| ---------- | ------- | ----------------------------------- |
+| 100        | 3.2 KB  | ~26k                                |
+| 1,000      | 32 KB   | ~260k                               |
+| 10,000     | 320 KB  | ~2.6M (across several creation txs) |
 
 A one-time cost at creation, paid by the creator, that makes the permissionless property real. `uint96` caps an individual payment at ~7.9e28 base units (79 billion tokens at 18 decimals) — fine for every stated use case, but it must be validated at creation, not assumed.
 
@@ -73,7 +73,7 @@ if (gasleft() < MIN_GAS_PER_TRANSFER + SAFETY_BUFFER) revert InsufficientGas();
 
 This converts a silent poisoning into a revert — the whole transaction fails and no state is written. `MIN_GAS_PER_TRANSFER` must be derived from **measured Monad gas costs** for the target tokens, not guessed (per the `monskills` `gas` skill; cold-state access is 3–4× Ethereum's).
 
-This is the single most important invariant to fuzz: *a chunk execution either records true outcomes or reverts entirely.*
+This is the single most important invariant to fuzz: _a chunk execution either records true outcomes or reverts entirely._
 
 ---
 
@@ -111,6 +111,7 @@ At creation the contract holds only hashes; it cannot sum the amounts. So `total
 If `totalAmount < Σ amounts`, early chunks pay out and **later chunks fail on insufficient balance** — recipients in the last chunk are silently shorted. Not exploitable against Distro (it's the creator's own money), but it's a correctness failure that only manifests at execution, and it disproportionately punishes whoever sorts last.
 
 ### Fix
+
 With C1's event-based DA, anyone can verify offchain, and the dashboard must verify before signing. Onchain, add a cheap invariant: track `totalPaid` and reject a chunk that would exceed `totalAmount`. Full onchain sum verification is impossible without storing the list — accept that, but make the failure loud (`InsufficientEscrow` revert with the shortfall) rather than a generic transfer failure.
 
 ---
@@ -119,9 +120,10 @@ With C1's event-based DA, anyone can verify offchain, and the dashboard must ver
 
 Nothing prevents a creator from creating and funding the same distribution twice (double-click, retried tx, impatient user on a slow RPC). Two escrows, two payrolls, everyone paid twice. In a push model there's no clawback.
 
-Monad's ~400ms blocks make this *more* likely, not less: the UI will feel unresponsive relative to block time and users will re-click.
+Monad's ~400ms blocks make this _more_ likely, not less: the UI will feel unresponsive relative to block time and users will re-click.
 
 ### Fix
+
 - Client-supplied `salt` / idempotency key in `createDistribution`; factory uses `Clones.cloneDeterministic` (CREATE2) and reverts on a duplicate `(creator, salt)`.
 - Deterministic addresses are a bonus: the dashboard can show the escrow address before deployment.
 - API-level idempotency key on `POST /api/distributions` as defense in depth.
@@ -149,6 +151,7 @@ Monad decouples consensus from execution with a ~3-block delayed state view, and
 The "Execute now" path does `createDistribution` → `fund` → `executeChunk` back-to-back. Reading state (e.g. confirming the escrow is funded) against a delayed view can make the UI show a stale "unfunded" escrow, or an eager keeper can fire `executeChunk` against a not-yet-visible balance and record spurious failures — which C2's griefing analysis shows is expensive to undo.
 
 ### Fix
+
 - Keeper and dashboard must gate execution on the appropriate block tag (`safe`/`finalized`), not `latest`.
 - The 10 MON reserve-balance floor applies to the **keeper EOA** — a keeper that dips below it silently stops sending. Alerting requirement, not a nice-to-have.
 - Verify all of this against `monskills` `concepts` before implementation rather than assuming Ethereum semantics.
@@ -175,26 +178,27 @@ Every payroll operator's first instinct is to send one test payment before commi
 
 ## 🟡 M4 — Token allowlist deferred with no owner
 
-Fee-on-transfer/rebasing are rejected at `fund()`, which is good. But nothing curates *known-broken* tokens, and USDC-class blocklists will produce failures that look like Distro bugs. Decide: curated allowlist for v1, or accept and document.
+Fee-on-transfer/rebasing are rejected at `fund()`, which is good. But nothing curates _known-broken_ tokens, and USDC-class blocklists will produce failures that look like Distro bugs. Decide: curated allowlist for v1, or accept and document.
 
 ## 🟡 M5 — DB indexes and RLS unspecified
 
 [DATABASE.md](DATABASE.md) is sound on shape but silent on:
+
 - Indexes for the dashboard's actual query patterns: `(distribution_id, status)`, `(distribution_id, chunk_index, position)`, `(creator_address, created_at desc)`. Distributions run to thousands of rows.
 - Concrete RLS policies. "RLS is the entire access-control story" is asserted, then never specified. Write the policies before the first table exists, not after.
-- `numeric(78,0)` correctly holds `uint256`; note that C1's `uint96` packing narrows the *per-payment* cap and the validator must enforce it.
+- `numeric(78,0)` correctly holds `uint256`; note that C1's `uint96` packing narrows the _per-payment_ cap and the validator must enforce it.
 
 ---
 
 ## Open questions the docs still dodge
 
-**O1 — What does "scheduled" guarantee a recipient?** With cancel-any-time-before-execution (C3), a scheduled distribution is a *promise*, not an escrow guarantee. Correct for payroll (employers can cancel). Wrong for bounties/grants where the point is credible commitment. Should v1 offer an **irrevocable** flag that waives cancellation? It's cheap now and impossible to retrofit without a new contract version.
+**O1 — What does "scheduled" guarantee a recipient?** With cancel-any-time-before-execution (C3), a scheduled distribution is a _promise_, not an escrow guarantee. Correct for payroll (employers can cancel). Wrong for bounties/grants where the point is credible commitment. Should v1 offer an **irrevocable** flag that waives cancellation? It's cheap now and impossible to retrofit without a new contract version.
 
-**O2 — Who pays the keeper's gas, and why would a third party ever execute?** "Permissionless execution" is only real if someone other than Distro is *motivated* to execute. Today nobody is: there's no tip, no rebate, no MEV. The fallback is really "the creator does it themselves," which is fine — but then say that plainly instead of implying a keeper ecosystem. A gas tip skimmed from the escrow would make third-party execution self-sustaining and genuinely remove Distro from the critical path. This is the difference between the property being architectural and being aspirational.
+**O2 — Who pays the keeper's gas, and why would a third party ever execute?** "Permissionless execution" is only real if someone other than Distro is _motivated_ to execute. Today nobody is: there's no tip, no rebate, no MEV. The fallback is really "the creator does it themselves," which is fine — but then say that plainly instead of implying a keeper ecosystem. A gas tip skimmed from the escrow would make third-party execution self-sustaining and genuinely remove Distro from the critical path. This is the difference between the property being architectural and being aspirational.
 
-**O3 — Monetization.** Still unanswered, still blocking the audit. The 0-value fee hook is the right hedge, but the *basis* (per distribution, % of volume, per recipient, subscription) changes where the hook lives. A per-recipient fee, for instance, interacts with chunking and gas in ways a flat fee doesn't.
+**O3 — Monetization.** Still unanswered, still blocking the audit. The 0-value fee hook is the right hedge, but the _basis_ (per distribution, % of volume, per recipient, subscription) changes where the hook lives. A per-recipient fee, for instance, interacts with chunking and gas in ways a flat fee doesn't.
 
-**O4 — Recurring (v2) shapes v1's contract today.** If recurring is one contract with N tranches, `Distribution` needs cycle state and v1 should reserve room. If it's N independent distributions from a saved template, v1 needs nothing and recurring is pure product surface. Deferring the *feature* is right; deferring this *decision* risks a v2 that can't reuse v1's audited contract.
+**O4 — Recurring (v2) shapes v1's contract today.** If recurring is one contract with N tranches, `Distribution` needs cycle state and v1 should reserve room. If it's N independent distributions from a saved template, v1 needs nothing and recurring is pure product surface. Deferring the _feature_ is right; deferring this _decision_ risks a v2 that can't reuse v1's audited contract.
 
 **O5 — Upgrade path.** Clones are immutable (correct). The factory can point new distributions at a new implementation, but live ones are frozen forever. That's the right trade — state it explicitly as a product promise, because it means a bug found post-launch cannot be patched for in-flight distributions, only for new ones.
 
@@ -207,4 +211,4 @@ Fee-on-transfer/rebasing are rejected at `fund()`, which is good. But nothing cu
 3. Answer **O1** and **O2** — both are contract-shape decisions, not product polish.
 4. Freeze the chunk-hash preimage (**M1**) as a normative spec shared by contract and offchain generator.
 5. Measure real Monad gas for a batch transfer → derive `MIN_GAS_PER_TRANSFER` (**C2**) and the default chunk size.
-6. *Then* write `Distribution` + `DistributionFactory`, with the fuzz invariants from [CONTRACT_SPEC.md](CONTRACT_SPEC.md) plus: *execution either records true outcomes or reverts*.
+6. _Then_ write `Distribution` + `DistributionFactory`, with the fuzz invariants from [CONTRACT_SPEC.md](CONTRACT_SPEC.md) plus: _execution either records true outcomes or reverts_.
