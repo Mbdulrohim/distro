@@ -1,43 +1,53 @@
-# User flows — DISTRO
+# User flows — Distro
 
-## 1. Creator: launch an airdrop
+> Push model: only the creator transacts. Recipients receive tokens and do nothing — there is no recipient-facing flow.
 
-1. Connect wallet on the dashboard.
-2. Select "New Campaign" → "Airdrop".
-3. Upload CSV (address, amount).
-4. Dashboard validates the list, shows total token amount required, generates the Merkle tree, and displays the root plus a spot-check tool (enter an address → see its computed proof/amount).
-5. Creator reviews and confirms → dashboard prompts a wallet transaction to deploy the campaign contract via the factory.
-6. Creator funds the campaign contract (approve + transfer, or transfer directly if using a pull pattern).
-7. Campaign goes live; creator gets a shareable claim link.
-8. Creator monitors claims on the campaign dashboard over time.
+## 1. Create and execute a distribution now
 
-## 2. Recipient: claim an airdrop
+1. Connect wallet (SIWE sign-in, Monad Mainnet) → dashboard.
+2. **New distribution** → name it, select the ERC-20 token.
+3. **Import recipients** — upload CSV (`address,amount`) or paste. A downloadable template is offered; the expected format is never assumed.
+4. **Validation** runs immediately: invalid addresses, duplicates, bad amounts, and total-vs-balance. Errors are shown inline against the offending rows, not as a generic failure.
+5. **Schedule** → "Execute now".
+6. **Review** — recipient count, total in both human and base units, token, chunk count, estimated gas, and an explicit irreversibility warning.
+7. **Approve + fund** → wallet prompts (ERC-20 approve, then `createDistribution` + `fund`). Tokens move into the distribution's escrow.
+8. Execution begins; the dashboard streams per-chunk and per-recipient results live.
+9. **Completed** — creator sees paid/failed totals, can retry failures or export a CSV record.
 
-1. Recipient opens the claim link (or the general claim portal) and connects their wallet.
-2. Portal checks eligibility against indexed campaign data, shows claimable amount.
-3. Recipient clicks "Claim" → wallet prompts a transaction.
-4. Contract verifies the Merkle proof, transfers tokens, marks the address as claimed.
-5. Portal confirms success and shows updated (zero) claimable balance for that campaign.
+## 2. Schedule a distribution for later (e.g. Friday payroll)
 
-## 3. Creator: set up vesting for team allocations
+Steps 1–4 as above, then:
 
-1. Connect wallet → "New Campaign" → "Vesting".
-2. Upload CSV (address, amount, optional per-row cliff/duration overrides) or set campaign-wide defaults.
-3. Review computed vesting curve preview per recipient.
-4. Confirm → deploy vesting contract via factory → fund it.
-5. Dashboard tracks vested/released/locked per recipient over time.
+5. **Schedule** → pick date/time. Shown in local time *and* UTC to prevent a timezone mistake sending payroll on the wrong day.
+6. **Review + approve + fund** — funds are escrowed now; they cannot be paid out before the scheduled time (enforced onchain by `executeAfter`, not by Distro).
+7. Distribution sits in **Scheduled**. The creator can **cancel for a full refund** any time before execution.
+8. At the scheduled time, Distro's keeper triggers execution automatically.
+   - If the keeper is unavailable, the creator (or anyone) can trigger it manually — the dashboard always offers "Execute now" once the time has passed. Execution is permissionless by design; Distro being down cannot make payroll miss.
+9. Creator tracks results as in flow 1.
 
-## 4. Recipient: release vested tokens
+## 3. Retry failed payments
 
-1. Recipient connects wallet on the claim portal.
-2. Portal shows currently-vested-and-unreleased amount for each active vesting campaign.
-3. Recipient clicks "Release" → wallet prompts a transaction → contract transfers the vested amount.
-4. Portal updates the remaining locked/vesting timeline.
+1. A distribution completes with some failures (e.g. a token blocklist rejected a recipient).
+2. Dashboard shows exactly which recipients failed, with the revert reason where available — successful payments are untouched and never re-sent.
+3. Creator fixes what's fixable (or not) and clicks **Retry failed**.
+4. Only the failed recipients are re-attempted, using funds still held in escrow.
+5. Any permanently undeliverable amount can be **reclaimed** to the creator's wallet once execution is complete.
 
-## 5. Creator: run a batch payout
+## 4. Cancel a scheduled distribution
 
-1. Connect wallet → "New Campaign" → "Batch Payout".
-2. Upload CSV (address, amount).
-3. Dashboard chunks the list into batches sized to stay under gas limits, shows estimated total gas cost.
-4. Creator confirms → dashboard submits batch transaction(s) sequentially, showing per-batch status.
-5. Dashboard shows final per-recipient sent/failed status; failed sends can be retried individually.
+1. Creator opens a **Scheduled** distribution.
+2. **Cancel** → clear confirmation showing the full refund amount.
+3. Wallet prompts `cancel()`; escrow returns the entire balance to the creator.
+4. Distribution moves to **Cancelled** — it can never pay anyone afterward.
+
+## Failure states that must be designed (not generic toasts)
+
+Per [CTO_REVIEW.md](CTO_REVIEW.md), each of these needs a real designed state:
+
+- Wrong network connected (must be Monad Mainnet).
+- Insufficient token balance at funding time.
+- Wallet rejection at approve/fund/execute.
+- RPC timeout or transaction stuck pending.
+- Transaction reverted.
+- **Indexer lag** — the gap between "confirmed onchain" and "dashboard updated" needs an explicit *syncing* state, or users assume failure and retry, wasting gas.
+- Unsupported token detected at funding (fee-on-transfer / rebasing).

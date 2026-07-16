@@ -1,40 +1,105 @@
-# PRD — DISTRO
+# PRD — Distro
+
+> Source of truth for what Distro is. Supersedes the pre-definition drafts (which described a claim-based Merkle/vesting product — that was never Distro).
+
+## What Distro is
+
+**Distro is an onchain distribution engine.** It enables individuals, teams, and organizations to automate token distributions at scale on Monad.
+
+Instead of manually sending payments to dozens or hundreds of wallets, a user creates a distribution, imports recipients, schedules execution, and Distro handles the rest — executing onchain and tracking every payment in real time.
+
+**Mission:** simplify how digital assets are distributed onchain.
+
+**Vision:** become the distribution infrastructure powering payroll, rewards, grants, airdrops, and recurring payouts across Web3.
+
+## Why Distro exists
+
+Blockchain made transferring assets permissionless. It didn't make *distributing* assets efficient. Distro fills that gap.
 
 ## Problem
 
-Projects launching tokens on Monad need to distribute them to many recipients — airdrops to communities, vesting for team/investors, one-off payouts for rewards or grants. Today this means custom scripts, one-off Merkle tree generation, hand-rolled vesting contracts, and no shared dashboard to track who's claimed what. It's error-prone and gets rebuilt from scratch by every team.
+Distributing assets onchain is still unnecessarily manual. Teams repeatedly copy wallet addresses, verify them, enter amounts, repeat transactions, track payment status, retry failed transfers, and keep records by hand. As recipient lists grow, the process gets slower, more error-prone, and harder to manage.
 
-## Goal
+## Solution
 
-A single platform where a project can create a distribution campaign (airdrop, vesting, or batch payout), fund it, and let recipients claim — with a dashboard for the creator and a claim portal for recipients, backed by audited, reusable contracts on Monad.
+Distro automates the entire distribution workflow:
+
+1. Create a distribution
+2. Import recipients
+3. Select a token
+4. Choose when to execute
+5. Approve
+
+Distro securely executes the distribution onchain while tracking every payment in real time.
+
+## Product pillars
+
+| Pillar | Meaning |
+|---|---|
+| **Distribution** | Send assets to many recipients efficiently. |
+| **Scheduling** | Execute distributions at a future date and time. |
+| **Automation** | Reduce manual work for recurring payouts. |
+| **Tracking** | Know exactly who has been paid and when. |
+
+**Transparency:** every distribution is verifiable onchain.
 
 ## Users
 
-- **Campaign creators**: token projects, DAOs, grant programs — need to define a recipient list, choose a distribution type, fund it, and monitor claims.
-- **Recipients**: wallet holders who are owed tokens — need a simple way to check eligibility and claim.
+**Primary:** Web3 startups · DAO contributors · community managers · NFT projects · token issuers
+
+**Secondary:** hackathon organizers · payroll teams · grant programs · freelancer agencies · creator communities
+
+## Use cases
+
+Monthly payroll · community rewards · airdrops · bug bounty payouts · hackathon prizes · grant distributions · creator revenue sharing · affiliate payouts · scholarship payments · DAO contributor compensation
+
+## What Distro is / is not
+
+**Is:** distribution platform · automation tool · payment scheduler · payroll engine · reward distribution system · treasury distribution infrastructure
+
+**Is not:** wallet · exchange · bridge · bank · **custodian** · portfolio tracker
+
+The "not a custodian" line is load-bearing — it constrains the execution architecture (see [CONTRACT_SPEC.md](CONTRACT_SPEC.md)).
+
+## Why Monad
+
+Large-scale distributions demand fast execution, low transaction costs, and high throughput. Monad lets Distro process recurring and bulk distributions efficiently without compromising user experience.
+
+## Core model: push, not claim
+
+Distro is a **push** system. The sender distributes; recipients do nothing and need no interaction. There is no claim step, no Merkle proof, no eligibility portal. Recipients receive tokens directly.
+
+This is the single most important architectural fact about the product.
 
 ## Scope — v1
 
-- Campaign types: **Merkle airdrop** (claim-based), **vesting schedule** (cliff + linear release), **batch payout** (direct push, no claim step).
-- Dashboard: connect wallet, create campaign, upload recipient list (CSV), generate Merkle tree where applicable, deploy campaign contract, fund it, monitor claim/release status.
-- Claim portal: recipient connects wallet, sees eligibility across campaigns, claims.
-- Single supported token standard: ERC-20 (Monad-compatible).
+- **One-off distributions**: execute immediately on approval.
+- **Scheduled distributions**: execute once, at a chosen future date/time.
+- Recipient import via CSV (address + amount), with validation.
+- Single token per distribution, ERC-20 only.
+- Dashboard: create → import → select token → schedule → approve → track.
+- Real-time per-recipient payment tracking, verifiable onchain.
+- Monad Mainnet only.
 
 ## Out of scope — v1
 
-- NFT distribution.
-- Multi-chain (Monad only for v1).
-- On-chain governance over campaign parameters.
+- Recurring/repeating schedules (v2 — see [ROADMAP.md](ROADMAP.md)).
+- Native MON distribution (ERC-20 only in v1).
+- NFT/ERC-721 distribution.
+- Multi-chain.
 - Fiat on/off-ramp.
+- Team/multi-user accounts (see [CTO_REVIEW.md](CTO_REVIEW.md) — flagged as a gap).
 
 ## Success metrics
 
-- Time from "connect wallet" to "campaign deployed" under 10 minutes for a first-time creator.
-- Claim transaction success rate > 99% (no failed claims due to platform bugs).
-- Zero funds lost or stuck due to contract bugs (this is the bar, not a stretch goal).
+- Time from "connect wallet" to "distribution executing" under 10 minutes for a first-time user.
+- Distribution execution success rate > 99% (no failures attributable to platform bugs).
+- Zero funds lost or stuck due to contract bugs. This is the bar, not a stretch goal.
+- A scheduled distribution executes on time **even if Distro's own infrastructure is down**.
 
 ## Key risks
 
-- Contract security — distribution contracts hold real funds; needs thorough testing and, before mainnet, an audit.
-- Merkle tree correctness — bad tree generation silently locks recipients out; needs strong test coverage and a verification step in the dashboard before deploy.
-- Monad-specific gotchas — chain is new; confirm assumptions about gas, finality, and tooling support rather than porting Ethereum assumptions blindly (use `monskills` skill for this).
+- **Contract security** — distribution contracts hold real funds in escrow; needs thorough testing and an external audit before mainnet.
+- **Execution liveness** — a payroll engine that misses payroll is a dead product. Execution must not depend on Distro being alive (see [CONTRACT_SPEC.md](CONTRACT_SPEC.md)).
+- **Recipient list correctness** — a wrong address in a push model means funds are gone irreversibly. Validation and an explicit review step are safety-critical, not polish.
+- **Monad-specific behavior** — gas is charged on `gas_limit` not gas used; confirm assumptions via the `monskills` `gas` and `concepts` skills rather than porting Ethereum assumptions.

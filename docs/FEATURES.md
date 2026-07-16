@@ -1,42 +1,55 @@
-# Features — DISTRO
+# Features — Distro
 
-## Campaign creation (dashboard)
+> Maps to the four product pillars in [PRD.md](PRD.md): Distribution, Scheduling, Automation, Tracking. Push model — recipients never claim.
 
-- Connect wallet (creator).
-- Choose campaign type: Airdrop / Vesting / Batch Payout.
-- Upload recipient list via CSV (address + amount, and for vesting: cliff/duration per recipient or campaign-wide defaults).
-- Client-side validation: duplicate addresses, invalid addresses, amount totals vs. available token balance.
-- Merkle tree generation (airdrop) with a downloadable proof set and on-dashboard verification (spot-check a few addresses against the generated root before deploying).
-- Deploy campaign contract via factory; show deployment tx status.
-- Fund campaign (transfer/approve tokens to the campaign contract).
-- Campaign dashboard: recipient table with claim/release status, total distributed vs. remaining, export CSV.
+## Distribution
 
-## Airdrop (Merkle claim)
+- Create a distribution: name it, pick the token, import recipients.
+- **Import recipients** via CSV (`address,amount`), or paste a list.
+- **Validation before anything is signed** — this is safety-critical, not polish. In a push model a wrong address means funds are irreversibly gone.
+  - Invalid / malformed addresses.
+  - Duplicate addresses (flag; let the user merge or keep intentionally).
+  - Zero or negative amounts.
+  - Total required vs. the creator's actual token balance.
+  - Explicit, unambiguous units — see "Decimals" below.
+- **Review step** showing the full committed state (recipient count, total amount, token, schedule) with an unmistakable "this is irreversible" moment before signing.
+- Chunking is computed for the user; the dashboard sizes chunks to Monad's gas reality and shows the estimated cost.
+- Fund + approve in the same flow → escrow holds the tokens until execution.
 
-- Recipients claim via the claim portal; contract verifies Merkle proof, marks claimed, transfers tokens.
-- One claim per address; no partial claims.
-- Optional claim deadline, after which unclaimed funds can be recovered by the creator.
+## Scheduling
 
-## Vesting
+- **Execute now** — run as soon as funding confirms.
+- **Execute later** — pick a future date/time; the escrow enforces it onchain (`executeAfter`).
+- Clear display of scheduled time in the user's local timezone *and* UTC — payroll gets sent to the wrong day otherwise.
+- Cancel + full refund any time before execution.
 
-- Per-recipient schedule: cliff period, vesting duration, release curve (linear for v1).
-- Recipients (or anyone on their behalf) can trigger a "release" call that sends the currently-vested, unreleased amount.
-- Dashboard shows vested vs. released vs. remaining-locked per recipient.
-- Creator cannot revoke or claw back by default; revocable vesting is a v2 consideration (see [ROADMAP.md](ROADMAP.md)).
+## Automation
 
-## Batch payout
+- Distro's keeper triggers scheduled distributions automatically — a **convenience, not a dependency**. If the keeper is down, the creator (or anyone) can trigger the run themselves; the dashboard always exposes a manual "Execute now" path.
+- **Retry failed payments** — failures are isolated per recipient, surfaced in the dashboard, and retryable in one click without re-running successful payments.
+- Recurring schedules are **v2** — see [ROADMAP.md](ROADMAP.md).
 
-- Direct push to a list of recipients in one or more batched transactions (chunked to stay under gas/block limits).
-- No claim step — funds arrive immediately on execution.
-- Execution status per recipient (sent / failed / retried) surfaced in the dashboard.
+## Tracking
 
-## Claim portal (recipient-facing)
-
-- Connect wallet, auto-detect eligibility across all campaigns tied to that address.
-- Show claimable amount, campaign type, and any relevant schedule (vesting timeline).
-- One-click claim/release with clear gas cost preview.
+- Live per-recipient status: `pending → paid | failed`, reconciled from onchain events.
+- Distribution-level progress: paid / failed / remaining, total distributed vs. escrowed.
+- Every row links to its transaction on a Monad explorer — "verifiable onchain" has to be one click, not a promise.
+- Export the result as CSV for the creator's own records/accounting.
+- Per-distribution audit timeline (created → funded → executed → completed).
 
 ## Cross-cutting
 
-- Campaign and recipient data indexed off-chain (Postgres) for fast dashboard queries, always reconciled against on-chain state — the chain is the source of truth.
-- Notifications (email/webhook) on claim, planned post-v1 — see [ROADMAP.md](ROADMAP.md).
+### Decimals
+CSV amounts are entered in **human units** (`100.5`), converted to base units against the token's `decimals` at commit time, and displayed converted back. The ambiguity between the two is a top cause of real-world distribution bugs — the review step shows both.
+
+### Token support
+ERC-20 only in v1. Fee-on-transfer and rebasing tokens are **rejected at funding** (balance-delta check), not silently mishandled. ERC-777/callback tokens are excluded.
+
+### Network
+Monad Mainnet only. A persistent, unmissable network indicator — with real funds at stake, an accidental wrong-network action must be hard to perform.
+
+### Data
+Offchain (Supabase) data is an index/cache over onchain state for fast dashboard queries. **The chain is the source of truth** — the schema must be reconstructable from onchain events plus creator-supplied metadata.
+
+### Not in v1
+Notifications (email/webhook) on completion/failure, team accounts, and public distribution pages — see [ROADMAP.md](ROADMAP.md) and the gaps flagged in [CTO_REVIEW.md](CTO_REVIEW.md).

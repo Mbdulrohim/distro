@@ -1,8 +1,16 @@
-# CTO Review — DISTRO Pre-Launch
+# CTO Review — Distro Pre-Launch
 
 Reviewed against the current [PRD](PRD.md), [FEATURES](FEATURES.md), [USER_FLOW](USER_FLOW.md), [CONTRACT_SPEC](CONTRACT_SPEC.md), [DATABASE](DATABASE.md), [API](API.md). Stack target: Next.js 15, React, TS, Tailwind, shadcn/ui, Wagmi, Viem, Foundry, Solidity, Supabase, on Monad mainnet.
 
 None of this is implementation yet — this is the gap list to resolve before the blueprint is frozen.
+
+> **Partially superseded (2026-07-15).** This review was written *before* the authoritative product definition arrived, against docs that described a claim-based Merkle/vesting product. Distro is actually a **push-based distribution engine** — the other docs have been rewritten; this one is kept as the standing risk register.
+>
+> **Still valid:** everything in Security concerns, Database improvements, Technical architecture, Landing page, Dashboard, and most Smart contract risks (SafeERC20, fee-on-transfer, ERC-777, single-EOA admin, gas griefing, Monad gas behavior).
+>
+> **Superseded:** anything referencing Merkle tree correctness/claim locking, vesting, recipient claim discovery, or the airdrop-first sequencing — §6 below is rewritten accordingly. Two gaps it raised (recipient notification, campaign correction) are now moot: recipients never transact, and a mis-entered address in a push model is an *irreversible send*, which is why validation and the review step are safety-critical in [FEATURES.md](FEATURES.md).
+>
+> The custody-vs-automation decision it did not anticipate is resolved in [CONTRACT_SPEC.md](CONTRACT_SPEC.md).
 
 ---
 
@@ -71,13 +79,14 @@ Current schema is a reasonable start but was written against generic Postgres, n
 
 ## 6. Feature prioritization
 
-Recommended sequencing, reinforcing and sharpening [ROADMAP.md](ROADMAP.md):
+*(Rewritten against the real product — see the superseded notice above. Reflected in [ROADMAP.md](ROADMAP.md).)*
 
-1. **Airdrop only**, fully hardened, audited, launched on mainnet. Highest demand, cleanest risk surface (single claim, no ongoing state). Don't split focus across three campaign types before one is bulletproof.
-2. **Vesting** second — most product-differentiated feature relative to existing generic multisend tools; justifies the platform's existence beyond "airdrop tool."
-3. **Batch payout** last, and treat it as the least differentiated feature — direct multisend is close to a commodity capability. Fine to ship a simpler version here since the risk surface (no persistent contract holding funds, immediate execution) is inherently lower.
-4. **Monetization mechanism** should be *decided* before contract #1 is audited, even if not activated at launch (e.g. fee set to 0 initially but the mechanism exists) — retrofitting a fee post-audit is expensive.
-5. **Team accounts / notifications** are reasonable to defer past v1, but flag them now so the DB schema doesn't have to be reworked later.
+1. **Core distribution first** — create → import → validate → review → fund → execute now. This is the product; everything else is an enhancement of it. Get it audited-grade before adding surface area.
+2. **Scheduling second.** It's the first pillar that differentiates Distro from a commodity multisend script, and it's cheap once escrow exists (`executeAfter` is one check). It's also what makes "payroll engine" true rather than aspirational.
+3. **Tracking + retry third.** "Retry failed transfers" and "track payment status" are named pain points in the PRD's problem statement — they're core, not polish. But they depend on the indexer, which is the most operationally involved piece.
+4. **Recurring automation deferred to v2.** It's the most-requested-sounding feature and the most dangerous to rush: repeat funding and cycle state materially expand the contract's audit surface. Ship scheduled-once first; a "duplicate this distribution" convenience covers most of the value at a fraction of the risk.
+5. **Monetization must be decided before the audit**, even if launched at zero — the contracts ship with a fee hook precisely so this doesn't force a re-audit later.
+6. **Team accounts** are reasonable to defer, but decide now whether they're coming: retrofitting an `organizations` layer under `distributions` later is a migration, not a feature.
 
 ## 7. Technical architecture improvements
 
