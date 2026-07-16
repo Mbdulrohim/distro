@@ -1,8 +1,10 @@
 # Runbook — F3: Deploy `Multisend` + calibrate gas
 
-Everything for F3 is built. **It must be run from a machine that can reach Monad** — the environment this was authored in cannot resolve `*.monad.xyz` at all (DNS fails for the RPC, the docs, and the explorers alike), so the deploy and the measurement could not be executed here.
+Two things come out of F3: the **real** `MIN_GAS_PER_TRANSFER`, and a deployed testnet address.
 
-Two things come out of this: a deployed testnet address, and the **real** `MIN_GAS_PER_TRANSFER`.
+**Step 1 (gas measurement) is ✅ done** — see the results below. **Step 2 (deploy) still needs running**, because it requires a funded key that only you hold.
+
+> Both machines this was attempted from hit `dns error` / `os error 11002` on `*.monad.xyz` while browsers loaded Monad sites fine. If that's you, see the DNS section below — it's a resolver problem, not a Monad outage.
 
 ---
 
@@ -69,38 +71,70 @@ See §4 on why a Safe isn't required for _this_ contract.
 
 ---
 
-## 1. Measure the gas (do this first — it changes the source)
+## ⚠️ If you hit `dns error` / `os error 11002`
+
+`forge` fails on `https://rpc.monad.xyz` while your **browser** loads Monad sites fine. That's not a contradiction: Chrome uses DNS-over-HTTPS and bypasses your system resolver — `forge` doesn't.
+
+The domain is healthy; it's a CNAME to QuickNode:
+
+```
+rpc.monad.xyz          → delicate-empty-lake.monad-mainnet.quiknode.pro → 64.31.29.187
+testnet-rpc.monad.xyz  → quiet-methodical-seed.monad-testnet.quiknode.pro
+```
+
+**Diagnose** (if the first fails and the second works, your resolver is the problem):
+
+```powershell
+Resolve-DnsName rpc.monad.xyz
+Resolve-DnsName rpc.monad.xyz -Server 1.1.1.1
+```
+
+**Fix** — flush, then point at a public resolver (needs an elevated terminal; `Get-NetAdapter` to find your interface name):
+
+```powershell
+ipconfig /flushdns
+Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ServerAddresses ("1.1.1.1","8.8.8.8")
+```
+
+**Or bypass it entirely** by passing the CNAME target as the fork URL — this is what unblocked the measurement below:
+
+```powershell
+forge test --fork-url https://delicate-empty-lake.monad-mainnet.quiknode.pro `
+  --match-path "test/Multisend.fork.t.sol" -vv
+```
+
+Treat that as a workaround, not a config value: it's the endpoint `rpc.monad.xyz` currently points at, and it can change without notice. Never hardcode it.
+
+---
+
+## 1. Measure the gas — ✅ DONE (2026-07-16)
 
 ```powershell
 cd C:\Users\USER\Documents\DISTRO\contracts
 forge test --fork-url monad_mainnet --match-path "test/Multisend.fork.t.sol" -vv
 ```
 
-`monad_mainnet` is an alias defined in `foundry.toml`, resolved from `.env` — no shell variable syntax, so it behaves the same in pwsh and bash.
+`monad_mainnet` is an alias in `foundry.toml`, resolved from `.env` — no shell variable syntax, so it behaves the same in pwsh and bash.
 
-Measures against a **mainnet fork** (no funds move — a fork is a local simulation). Mainnet rather than testnet because it measures against **real USDC**, and real tokens cost more than a plain ERC-20: USDC-class contracts do extra storage reads for blocklist checks, and the floor must clear the _most_ a legitimate transfer could need.
+**Results, against real Monad mainnet state:**
 
-Read from the output:
+| Measurement                           | Value              |
+| ------------------------------------- | ------------------ |
+| marginal gas/recipient, plain ERC-20  | 28,783             |
+| marginal gas/recipient, **real USDC** | **31,471**         |
+| 200 recipients (real USDC)            | 6,335,797          |
+| `MIN_GAS_PER_TRANSFER` floor          | 100,000 (~3.2x) ✅ |
 
-| Log line                                   | Use                                           |
-| ------------------------------------------ | --------------------------------------------- |
-| `MONAD marginal gas/recipient (real USDC)` | the number `MIN_GAS_PER_TRANSFER` must exceed |
-| `Recommended (2x real-token marginal)`     | the value to set                              |
-| `MONAD gas, 200 recipients (real USDC)`    | derive the dashboard's default batch size     |
+`MIN_GAS_PER_TRANSFER` stays at **100,000** — now measurement-backed rather than guessed. It is retained rather than tightened because the floor must clear the most gas a _legitimate_ transfer could need, and USDC is a reference point, not an upper bound.
 
-**If `test_fork_placeholderFloorIsNotTooLow` fails**, the current `100_000` is _below_ a real transfer's cost — legitimate payments would be starved and mislabeled as failures. Fix the constant; do not touch the test.
+**The headline finding: Monad costs ~1.1x local, not 4x.** The tempting extrapolation (local 28.6k × the "3-4x cold access" figure ≈ 115k) would have set the floor _above_ a real transfer's cost — starving legitimate payments and mislabeling them as rejections, the exact bug the floor prevents. Measure; don't multiply.
 
-**If `test_fork_gas_realUsdc` fails with "no code at the USDC address"**, the token registry is wrong. Stop and fix `web/src/lib/tokens/registry.ts` before anything else — a wrong token address means users approve and send to the wrong contract.
+It forks **mainnet** (no funds move — a fork is a local simulation) rather than testnet, because it needs **real USDC**: real tokens cost more than a plain ERC-20 (blocklist checks add storage reads), and the floor must clear the _most_ a legitimate transfer could need.
 
-### Then update the constant
+**Re-run after any change to `distribute`'s hot loop.** Two failures matter:
 
-In `contracts/src/Multisend.sol`, replace the `MIN_GAS_PER_TRANSFER` placeholder with the measured value and **record the measurement in the comment** (the current comment explains why the naive "×4 for Monad cold access" extrapolation is invalid — replace it with the real number, don't delete the reasoning).
-
-Mirror the same value in `test/Multisend.gas.t.sol`'s `floor` local — it's mirrored deliberately so changing the constant fails that test and forces a re-justification.
-
-```powershell
-forge test        # all 33 offline tests must still pass
-```
+- **`test_fork_placeholderFloorIsNotTooLow`** — the floor has fallen below a real transfer's cost. Legitimate payments would be starved and mislabeled as failures. Fix the constant; don't touch the test. (`MIN_GAS_PER_TRANSFER` is mirrored in `test/Multisend.gas.t.sol` on purpose, so changing it forces a re-justification.)
+- **`test_fork_gas_realUsdc` — "no code at the USDC address"** — the token registry is wrong. Stop everything and fix `web/src/lib/tokens/registry.ts`: a wrong token address means users approve and send to the wrong contract.
 
 ---
 
@@ -160,9 +194,9 @@ Note too that the token registry holds **mainnet** addresses. Those contracts do
 
 ## Definition of Done
 
-- [ ] `MIN_GAS_PER_TRANSFER` is measurement-backed, with the measurement recorded in the comment.
-- [ ] `test_fork_placeholderFloorIsNotTooLow` passes against a real fork.
-- [ ] All 33 offline tests still pass.
+- [x] `MIN_GAS_PER_TRANSFER` is measurement-backed (31,471 real-USDC marginal; floor 100k = ~3.2x), recorded in the comment.
+- [x] `test_fork_placeholderFloorIsNotTooLow` passes against a real fork.
+- [x] All 33 offline tests still pass.
 - [ ] `Multisend` deployed to Monad testnet.
 - [ ] Address recorded in `deployments/monad-testnet.json` **and** `web/src/config/contracts.ts`.
 - [ ] Contract verified on all three explorers.

@@ -39,19 +39,33 @@ contract Multisend is ReentrancyGuard {
     /// as `PaymentFailed`, making their own recipients look like they rejected
     /// the payment. This converts that into a clean revert that writes nothing.
     ///
-    /// **Placeholder pending measurement on Monad — see test/Multisend.gas.t.sol.**
-    /// Locally a transfer's marginal cost is ~28.6k, so 100k carries ~3.5x
-    /// headroom. The Monad figure is *not* that number times four: the "3-4x
-    /// cold access" penalty applies to cold-access opcodes (~2.1k SLOAD, ~2.6k
-    /// account), not to the ~20k SSTORE that dominates crediting a fresh balance.
-    /// The real cost is likely ~40-50k, but a constant guarding other people's
-    /// payroll should not rest on "likely".
+    /// **MEASURED on Monad mainnet, 2026-07-16** (test/Multisend.fork.t.sol,
+    /// forked against real state):
     ///
-    /// The floor is not free: Monad charges on `gas_limit` rather than gas used,
-    /// so the caller must supply headroom the final transfer never spends. That
-    /// is ~1% on a 200-recipient run and ~185% on a single payment — which is
-    /// exactly the shape of the "test payment" flow in docs/FEATURES.md. Revisit
-    /// once the true figure is known.
+    ///   - plain ERC-20 : 28,783 gas/recipient
+    ///   - **real USDC  : 31,471 gas/recipient**  ← the figure this must clear
+    ///   - 200 recipients (real USDC): 6,335,797 gas
+    ///
+    /// 100k is therefore ~3.2x the heaviest measured real token. Retained rather
+    /// than tightened: the floor must exceed the most gas a *legitimate* transfer
+    /// could need, and USDC is a reference point, not an upper bound — a heavier
+    /// token (more storage reads, hooks) must still fit under it, or its transfers
+    /// get starved and reported as rejections. The headroom costs ~1% of a
+    /// 200-recipient run, which is the right trade against a false "failed".
+    ///
+    /// **Do not extrapolate this number; measure it.** The obvious move was to
+    /// scale the local ~28.6k by Monad's "3-4x cold access" figure, giving ~115k.
+    /// That is wrong twice over: the multiplier applies to cold-access opcodes
+    /// (~2.1k SLOAD, ~2.6k account), not the ~20k SSTORE that dominates crediting
+    /// a fresh balance — and the measured Monad cost is **1.1x local**, not 4x.
+    /// A 115k floor would have sat *above* a real transfer's cost, starving
+    /// legitimate payments: precisely the bug this constant exists to prevent.
+    ///
+    /// The floor is not free — Monad charges on `gas_limit`, not gas used, so the
+    /// caller supplies headroom the final transfer never spends. ~1% on a
+    /// 200-recipient run; proportionally much larger on a single payment (the
+    /// "test payment" flow in docs/FEATURES.md), though trivial in absolute terms
+    /// at Monad gas prices.
     uint256 internal constant MIN_GAS_PER_TRANSFER = 100_000;
 
     /// @notice A recipient was paid.

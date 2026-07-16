@@ -80,17 +80,16 @@ contract MultisendGasTest is Test {
     /// assert a Monad bound, because that number is not knowable from here and
     /// an assertion tuned to pass would be worse than no assertion.
     ///
-    /// **UNRESOLVED — blocks mainnet.** The floor's correct value depends on
-    /// Monad's real per-transfer cost, which must be measured against a forked
-    /// or live Monad RPC. Naively scaling the local marginal by Monad's "3-4x
-    /// cold access" is wrong: that multiplier applies to cold-access opcodes
-    /// (~2.1k SLOAD, ~2.6k account), not to the ~20k SSTORE that dominates a
-    /// fresh-balance credit. A blanket 4x would suggest ~115k — above the
-    /// current 100k floor, which would starve real transfers and report them as
-    /// rejections. The true figure is likely ~40-50k, but "likely" is not a
-    /// basis for a security-adjacent constant guarding other people's payroll.
+    /// **RESOLVED 2026-07-16** — measured on a Monad mainnet fork
+    /// (test/Multisend.fork.t.sol): real USDC costs **31,471 gas/recipient**, so
+    /// the 100k floor carries ~3.2x headroom and is confirmed safe.
     ///
-    /// Until measured, 100k stands as a deliberately conservative placeholder.
+    /// The measurement also killed the tempting extrapolation: Monad's real cost
+    /// is **1.1x local**, not the ~4x implied by its "3-4x cold access" figure
+    /// (that multiplier applies to cold-access opcodes, not the ~20k SSTORE that
+    /// dominates here). A 4x guess would have put the floor near 115k — *above*
+    /// a real transfer — starving legitimate payments and mislabeling them as
+    /// rejections, which is the exact bug the floor prevents.
     function test_gas_floorMarginAgainstLocalCost() public {
         uint256 g10 = _measure(10, 0x30000);
         uint256 g110 = _measure(110, 0x40000);
