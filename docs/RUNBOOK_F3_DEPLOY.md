@@ -96,14 +96,23 @@ ipconfig /flushdns
 Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ServerAddresses ("1.1.1.1","8.8.8.8")
 ```
 
-**Or bypass it entirely** by passing the CNAME target as the fork URL — this is what unblocked the measurement below:
+**Or bypass it entirely** by passing the CNAME target directly. Both verified working on 2026-07-16 when the `monad.xyz` names would not resolve:
 
 ```powershell
-forge test --fork-url https://delicate-empty-lake.monad-mainnet.quiknode.pro `
-  --match-path "test/Multisend.fork.t.sol" -vv
+# mainnet — returned 0x8f (143). This is what unblocked the measurement below.
+cast chain-id --rpc-url https://delicate-empty-lake.monad-mainnet.quiknode.pro
+
+# testnet — returned 10143
+cast chain-id --rpc-url https://quiet-methodical-seed.monad-testnet.quiknode.pro
 ```
 
-Treat that as a workaround, not a config value: it's the endpoint `rpc.monad.xyz` currently points at, and it can change without notice. Never hardcode it.
+⚠️ **Workaround, never a config value.** These are the endpoints the `monad.xyz` names currently CNAME to; they can rotate without notice. Re-resolve if one stops working:
+
+```powershell
+Resolve-DnsName testnet-rpc.monad.xyz -Server 1.1.1.1 -Type A
+```
+
+Fixing the resolver is the real answer — the bypass just gets you moving today.
 
 ---
 
@@ -148,6 +157,15 @@ forge script script/DeployMultisend.s.sol:DeployMultisend `
 ```
 
 (Backtick is PowerShell's line continuation — the bash `\` will not work.)
+
+If DNS is still broken, substitute the verified CNAME target for `monad_testnet`:
+
+```powershell
+forge script script/DeployMultisend.s.sol:DeployMultisend `
+  --rpc-url https://quiet-methodical-seed.monad-testnet.quiknode.pro `
+  --account monad-deployer `
+  --broadcast -vvv
+```
 
 Record the address in:
 
