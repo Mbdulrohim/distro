@@ -14,18 +14,22 @@
   - Explicit, unambiguous units — see "Decimals" below.
 - **Review step** showing the full committed state (recipient count, total amount, token, schedule) with an unmistakable "this is irreversible" moment before signing.
 - Chunking is computed for the user; the dashboard sizes chunks to Monad's gas reality and shows the estimated cost.
-- Fund + approve in the same flow → escrow holds the tokens until execution.
+- **Fund when you choose, not at creation.** Funding is decoupled from creation ([CONTRACT_SPEC.md](CONTRACT_SPEC.md)) — schedule Friday's payroll on Monday, fund it Thursday night. The lock-up window is the creator's decision.
+- **A "Ready but unfunded" distribution silently does nothing at its scheduled time.** That is a contract-level no-op, which makes it a product-level obligation: the dashboard must make an unfunded-but-scheduled distribution impossible to miss, and it is the single best argument for shipping notifications sooner than v2.
+- **Test payment** — send to one recipient before committing the full run. Every payroll operator's first instinct before moving $200k, and there is otherwise no non-destructive way to rehearse an irreversible action.
 
 ## Scheduling
 
 - **Execute now** — run as soon as funding confirms.
 - **Execute later** — pick a future date/time; the escrow enforces it onchain (`executeAfter`).
 - Clear display of scheduled time in the user's local timezone *and* UTC — payroll gets sent to the wrong day otherwise.
-- Cancel + full refund any time before execution.
+- **Cancel + full refund any time before execution begins** — gated on execution progress, not the clock, so a creator can call off Friday's payroll on Friday morning.
+  - This means a scheduled distribution is a **promise, not a guarantee** — right for payroll, questionable for bounties/grants where credible commitment is the point. Whether v1 offers an opt-in irrevocable mode is an open decision (O1 in [CONTRACT_SPEC.md](CONTRACT_SPEC.md)) that cannot be retrofitted into an immutable contract.
 
 ## Automation
 
 - Distro's keeper triggers scheduled distributions automatically — a **convenience, not a dependency**. If the keeper is down, the creator (or anyone) can trigger the run themselves; the dashboard always exposes a manual "Execute now" path.
+- That fallback is only real because the recipient list is emitted onchain — anyone can rebuild a chunk from logs and execute it without Distro's database. Whether a *stranger* would ever bother is a separate question, unresolved (see O2 in [CONTRACT_SPEC.md](CONTRACT_SPEC.md)); today the honest claim is "the creator can always self-serve", not "a keeper ecosystem exists".
 - **Retry failed payments** — failures are isolated per recipient, surfaced in the dashboard, and retryable in one click without re-running successful payments.
 - Recurring schedules are **v2** — see [ROADMAP.md](ROADMAP.md).
 
