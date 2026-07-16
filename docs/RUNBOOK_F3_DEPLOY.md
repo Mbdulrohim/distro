@@ -36,9 +36,17 @@ forge --version
 
 ### b. Environment
 
+Use the **absolute path** — a fresh terminal opens in your home folder, and `forge` run outside the project doesn't error, it just prints `Nothing to compile` and does nothing:
+
 ```powershell
-cd contracts
+cd C:\Users\USER\Documents\DISTRO\contracts
 Copy-Item .env.example .env
+```
+
+Sanity-check you're in the right place (`foundry.toml` must be listed):
+
+```powershell
+Get-ChildItem foundry.toml
 ```
 
 The public RPC URLs ship as working defaults, so there's nothing to fill in for testnet. Foundry loads `.env` automatically.
@@ -64,7 +72,7 @@ See §4 on why a Safe isn't required for _this_ contract.
 ## 1. Measure the gas (do this first — it changes the source)
 
 ```powershell
-cd contracts
+cd C:SERSSERDOCUMENTSDISTRONTRACTS
 forge test --fork-url monad_mainnet --match-path "test/Multisend.fork.t.sol" -vv
 ```
 
