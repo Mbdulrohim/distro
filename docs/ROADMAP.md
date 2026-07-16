@@ -12,15 +12,39 @@
 
 - SIWE sign-in, Monad Mainnet only, stateless JWT session, protected dashboard.
 
-## Phase 2 — Core distribution (v1 core)
+## Phase 2 — Multisend MVP (current)
 
-**Blocked on the pre-implementation sequence** in [CONTRACT_SPEC.md](CONTRACT_SPEC.md) — decisions O1 (irrevocable mode) and O2 (execution incentive) change the contract's shape, and `MIN_GAS_PER_TRANSFER` / chunk size must come from measured Monad gas rather than a guess.
+Per [CTO_REVIEW.md](CTO_REVIEW.md) S1: escrow, keeper, indexer, and onchain DA all exist to serve *scheduling*, which the PRD's problem statement never asks for. This phase ships the validated pain — bulk, tracking, retry — with none of that machinery.
 
-- `DistributionFactory` + `Distribution` escrow contracts (payload commitment + onchain DA, permissionless execution) per [CONTRACT_SPEC.md](CONTRACT_SPEC.md).
-- Full Foundry coverage: unit + fuzz + the spec's invariants — starting with *"a chunk execution either records true outcomes or reverts entirely"*, the gas-griefing invariant.
-- Dashboard: create → import CSV → validate → review → commit → fund → execute now.
-- Per-recipient tracking from onchain events.
-- **Rebuild-from-chain path** for the indexer. Not a disaster-recovery nicety: it is the same code path a third-party executor uses, so building it early keeps the permissionless claim honest and exercised rather than theoretical.
+**Contract — done.** `contracts/src/Multisend.sol`:
+- Stateless. Tokens move `msg.sender → recipient` directly, so the contract's balance is always zero — a failed payment simply doesn't happen and the tokens stay with the sender. No refund path, no state machine, no stranded funds.
+- No owner, no pause, no fee: nothing to govern, and being stateless makes it trivially replaceable.
+- Per-recipient failure isolation (one blocklisted address can't revert a payroll run); retry is just a second call with the failed subset.
+- Handles non-standard ERC-20s: USDT-class (no return value), `false`-returning, and garbage-returning tokens.
+- 31 tests: unit, fuzz, reentrancy, gas benchmarks.
+
+**Remaining for MVP:**
+- Dashboard: connect → import CSV → validate → review → approve → distribute.
+- Parse results from the execution receipt client-side. **No indexer service** — the transaction's own receipt carries every `Paid`/`PaymentFailed` event.
+- Supabase for history only.
+- Testnet deploy + verification (monskills verification API).
+
+**Blocking mainnet:**
+- `MIN_GAS_PER_TRANSFER` must be measured on Monad. The current `100_000` is a conservative placeholder; local marginal cost is ~28.6k, and the naive "×4 for Monad cold access" extrapolation is invalid (that penalty doesn't apply to the ~20k SSTORE that dominates). See `test/Multisend.gas.t.sol`.
+- External audit. Small surface (~100 lines), so this is cheap relative to the escrow.
+
+## Phase 3 — Scheduling (escrow)
+
+**Blocked on decisions O1 (irrevocable mode) and O2 (execution incentive)** in [CONTRACT_SPEC.md](CONTRACT_SPEC.md) — both change contract shape and cannot be retrofitted into an immutable clone.
+
+Only start this once scheduling demand is validated. `Multisend` is untouched by this work; the escrow is a separate contract reusing the same payload encoding.
+
+- `DistributionFactory` + `Distribution` escrow (payload commitment + onchain DA, permissionless execution).
+- Fuzz the spec's invariants — starting with *"a chunk execution either records true outcomes or reverts entirely"*, the gas-griefing invariant. Note that griefing is a real threat **only here**, where execution is permissionless; in `Multisend` the caller can only ever move their own tokens.
+- Keeper service + the always-available manual path.
+- Timezone-safe scheduling UI (local + UTC).
+- **Notifications ship with this phase, not later** ([CTO_REVIEW.md](CTO_REVIEW.md) UX1): a Ready-but-unfunded distribution silently no-ops at its scheduled time, the chain gives no signal, and the user is not looking at the dashboard at 9am on payday.
+- **Rebuild-from-chain path** for the indexer — the same code path a third-party executor uses, so building it keeps the permissionless claim exercised rather than theoretical.
 
 ## Phase 3 — Scheduling
 
@@ -28,7 +52,7 @@
 - Keeper service triggering scheduled runs — plus the always-available manual path (keeper must never be a dependency).
 - Timezone-safe scheduling UI (local + UTC).
 
-## Phase 4 — Tracking & reliability
+## Phase 4 — Tracking & reliability (with scheduling)
 
 - Indexer (long-running service, reorg-safe, idempotent) + reconciliation job.
 - Retry-failed-payments flow; reclaim undeliverable funds.
