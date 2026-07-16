@@ -45,6 +45,7 @@ distro/
 | [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md) | Smart-contract architecture (escrow model, invariants) |
 | [docs/DATABASE.md](docs/DATABASE.md) | Supabase schema, RLS policies, indexes |
 | [docs/API.md](docs/API.md) | Route handlers backing the dashboard |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full system architecture and the reasoning behind each decision |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phasing and the decisions that block each phase |
 | [docs/BRAND.md](docs/BRAND.md) | Name, voice, vocabulary |
 | [docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md) | Adversarial review — the *why* behind the contract's shape |
