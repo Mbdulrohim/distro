@@ -4,6 +4,7 @@ import { parseSiweMessage } from "viem/siwe";
 import { getAddress } from "viem";
 import { verifySignIn, MONAD_MAINNET_CHAIN_ID } from "@/lib/auth/siwe";
 import { createSessionToken } from "@/lib/auth/session";
+import { ensureUser } from "@/lib/db/users";
 import { NONCE_COOKIE, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/constants";
 
 /**
@@ -63,6 +64,21 @@ export async function POST(request: Request) {
   cookieStore.delete(NONCE_COOKIE);
 
   const address = getAddress(parsed.address);
+
+  // Provision the user row before issuing a session. Ordered deliberately: a
+  // session whose wallet has no `users` row can own no distributions, so
+  // handing one out would produce an account that silently cannot work.
+  // The verified signature above is this call's authorization.
+  try {
+    await ensureUser(address);
+  } catch (error) {
+    console.error("Sign-in failed: could not provision user", error);
+    return NextResponse.json(
+      { error: "Sign-in temporarily unavailable. Please try again." },
+      { status: 503 },
+    );
+  }
+
   const token = await createSessionToken(address, MONAD_MAINNET_CHAIN_ID);
 
   cookieStore.set(SESSION_COOKIE, token, {
