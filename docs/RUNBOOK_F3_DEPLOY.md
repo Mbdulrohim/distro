@@ -6,31 +6,69 @@ Two things come out of this: a deployed testnet address, and the **real** `MIN_G
 
 ---
 
+> **Shell:** commands are **PowerShell** (the project's primary shell). `$VAR` is bash syntax and will silently expand to nothing in pwsh — so these use Foundry's own RPC aliases from `foundry.toml` instead, which work identically in every shell.
+
 ## 0. Prerequisites
 
-```bash
+### a. Put Foundry on your PATH
+
+Foundry is installed at `C:\Users\USER\.foundry\bin`, but PowerShell may not see it (`forge: The term 'forge' is not recognized`). This session only:
+
+```powershell
+$env:PATH += ";$env:USERPROFILE\.foundry\bin"
+```
+
+Permanently (recommended — do it once):
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  "PATH",
+  [Environment]::GetEnvironmentVariable("PATH", "User") + ";$env:USERPROFILE\.foundry\bin",
+  "User"
+)
+```
+
+Reopen the terminal, then confirm:
+
+```powershell
+forge --version
+```
+
+### b. Environment
+
+```powershell
 cd contracts
-cp .env.example .env     # then fill in the RPC URLs
+Copy-Item .env.example .env
 ```
 
-`.env` needs:
+The public RPC URLs ship as working defaults, so there's nothing to fill in for testnet. Foundry loads `.env` automatically.
 
-```
-MONAD_TESTNET_RPC_URL=https://testnet-rpc.monad.xyz
-MONAD_MAINNET_RPC_URL=https://rpc.monad.xyz
+### c. A deployer key — via keystore, never a raw key
+
+Per the Monad docs' recommended method. **Never paste a private key into a command, a file, or a chat** — `--interactive` prompts for it and stores it encrypted:
+
+```powershell
+cast wallet import monad-deployer --interactive
 ```
 
-A funded testnet EOA for the deploy. See §4 on why a Safe isn't required for _this_ contract.
+To use a fresh throwaway key for testnet, generate one first with `cast wallet new` and import that.
+
+### d. Fund it
+
+Get testnet MON from the faucet: **https://testnet.monad.xyz** (chain 10143). You need gas to deploy.
+
+See §4 on why a Safe isn't required for _this_ contract.
 
 ---
 
 ## 1. Measure the gas (do this first — it changes the source)
 
-```bash
+```powershell
 cd contracts
-forge test --fork-url $MONAD_MAINNET_RPC_URL \
-  --match-path "test/Multisend.fork.t.sol" -vv
+forge test --fork-url monad_mainnet --match-path "test/Multisend.fork.t.sol" -vv
 ```
+
+`monad_mainnet` is an alias defined in `foundry.toml`, resolved from `.env` — no shell variable syntax, so it behaves the same in pwsh and bash.
 
 Measures against a **mainnet fork** (no funds move — a fork is a local simulation). Mainnet rather than testnet because it measures against **real USDC**, and real tokens cost more than a plain ERC-20: USDC-class contracts do extra storage reads for blocklist checks, and the floor must clear the _most_ a legitimate transfer could need.
 
@@ -52,7 +90,7 @@ In `contracts/src/Multisend.sol`, replace the `MIN_GAS_PER_TRANSFER` placeholder
 
 Mirror the same value in `test/Multisend.gas.t.sol`'s `floor` local — it's mirrored deliberately so changing the constant fails that test and forces a re-justification.
 
-```bash
+```powershell
 forge test        # all 33 offline tests must still pass
 ```
 
@@ -60,11 +98,14 @@ forge test        # all 33 offline tests must still pass
 
 ## 2. Deploy to testnet
 
-```bash
-forge script script/DeployMultisend.s.sol:DeployMultisend \
-  --rpc-url $MONAD_TESTNET_RPC_URL \
+```powershell
+forge script script/DeployMultisend.s.sol:DeployMultisend `
+  --rpc-url monad_testnet `
+  --account monad-deployer `
   --broadcast -vvv
 ```
+
+(Backtick is PowerShell's line continuation — the bash `\` will not work.)
 
 Record the address in:
 
