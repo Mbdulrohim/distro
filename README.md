@@ -47,6 +47,7 @@ distro/
 | [docs/DATABASE.md](docs/DATABASE.md) | Supabase schema, RLS policies, indexes |
 | [docs/API.md](docs/API.md) | Route handlers backing the dashboard |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full system architecture and the reasoning behind each decision |
+| [docs/UX_SPEC.md](docs/UX_SPEC.md) | Every journey, screen, and state (empty/loading/error/success) for the MVP |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phasing and the decisions that block each phase |
 | [docs/BRAND.md](docs/BRAND.md) | Name, voice, vocabulary |
 | [docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md) | Adversarial review — the *why* behind the contract's shape |
