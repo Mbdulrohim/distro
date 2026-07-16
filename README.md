@@ -42,7 +42,8 @@ distro/
 | [docs/PRD.md](docs/PRD.md) | Product definition, scope, success metrics |
 | [docs/FEATURES.md](docs/FEATURES.md) | Feature set, mapped to the four product pillars |
 | [docs/USER_FLOW.md](docs/USER_FLOW.md) | Step-by-step flows and the failure states that need designing |
-| [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md) | Smart-contract architecture (escrow model, invariants) |
+| [docs/CONTRACT_ARCHITECTURE.md](docs/CONTRACT_ARCHITECTURE.md) | Contract-system design across both contracts (responsibilities, storage, events, gas, security, upgrades) |
+| [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md) | Escrow contract's normative spec (state machine, invariants) |
 | [docs/DATABASE.md](docs/DATABASE.md) | Supabase schema, RLS policies, indexes |
 | [docs/API.md](docs/API.md) | Route handlers backing the dashboard |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full system architecture and the reasoning behind each decision |
