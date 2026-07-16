@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DISTRO",
-  description: "Token distribution infrastructure for Monad.",
+  title: "Distro",
+  description: "Onchain distribution engine for Monad.",
 };
 
 export default function RootLayout({
