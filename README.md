@@ -50,6 +50,7 @@ distro/
 | [docs/UX_SPEC.md](docs/UX_SPEC.md) | Every journey, screen, and state (empty/loading/error/success) for the MVP |
 | [docs/WIREFRAMES.md](docs/WIREFRAMES.md) | ASCII wireframes for every page |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phasing and the decisions that block each phase |
+| [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) | Feature-by-feature build plan (goal, deps, files, tests, DoD) |
 | [docs/BRAND.md](docs/BRAND.md) | Name, voice, vocabulary |
 | [docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md) | Adversarial review — the *why* behind the contract's shape |
 | [docs/CTO_REVIEW.md](docs/CTO_REVIEW.md) | Scope and product-fit review |
