@@ -8,6 +8,8 @@ import { findUserId } from "@/lib/db/users";
 import { getDistribution, getRecipients, getSummary, getTransactions } from "@/lib/db/distribution";
 import { StatusBadge } from "@/components/distributions/status-badge";
 import { RecipientResults } from "@/components/distributions/recipient-results";
+import { RetryPanel } from "@/components/distributions/retry-panel";
+import { isAddress } from "viem";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
 import { truncateAddress } from "@/lib/format";
 import { supportedChains } from "@/config/chains";
@@ -89,10 +91,19 @@ export default async function DistributionDetailPage({
           <p className="font-medium text-warning">
             {failedCount} payment{failedCount === 1 ? "" : "s"} didn&apos;t go through.
           </p>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 mb-3 text-muted-foreground">
             Those tokens never left your wallet — they&apos;re still yours. Retrying sends only the
             failed subset; nobody gets paid twice.
           </p>
+          {isAddress(dist.tokenAddress) ? (
+            <RetryPanel
+              distributionId={dist.id}
+              tokenAddress={dist.tokenAddress}
+              tokenDecimals={dist.tokenDecimals}
+              chainId={dist.chainId}
+              failed={recipients.filter((r) => r.status === "failed")}
+            />
+          ) : null}
         </div>
       ) : null}
 
