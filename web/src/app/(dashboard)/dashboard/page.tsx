@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, Inbox } from "lucide-react";
+import { Plus, Inbox, ChevronRight } from "lucide-react";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
 import { getDashboardStats, getRecentDistributions } from "@/lib/db/dashboard";
-import { formatAmountWithSymbol } from "@/lib/recipients/format";
+import { formatAmount } from "@/lib/recipients/format";
 import { StatusBadge } from "@/components/distributions/status-badge";
 import { Button } from "@/components/ui/button";
 
@@ -37,9 +37,14 @@ export default async function DashboardPage() {
     stats !== null && stats.inFlight + stats.completed + stats.failed + stats.drafts > 0;
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+    <main className="mx-auto w-full max-w-5xl px-6 py-10 sm:py-12">
       <div className="mb-8 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Distributions</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Distributions</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pay many wallets at once, tracked to the last payment.
+          </p>
+        </div>
         <Button size="sm" render={<Link href="/dashboard/new" />}>
           <Plus />
           New distribution
@@ -49,71 +54,100 @@ export default async function DashboardPage() {
       {!hasAnything ? (
         <EmptyState />
       ) : (
-        <>
-          <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex flex-col gap-10">
+          {/* Counters — one unified strip with hairline dividers, flat by
+              default (DESIGN.md), rather than four floating boxes. */}
+          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
             <Stat label="In flight" value={stats!.inFlight} />
             <Stat label="Completed" value={stats!.completed} />
             <Stat label="Needs attention" value={stats!.failed} emphasise={stats!.failed > 0} />
             <Stat label="Drafts" value={stats!.drafts} />
-          </section>
+          </dl>
 
-          <section className="mb-8">
-            <h2 className="mb-3 text-sm font-medium text-muted-foreground">Total distributed</h2>
+          <section>
+            <SectionHeading>Total distributed</SectionHeading>
             {stats!.totalDistributed.length === 0 ? (
-              <p className="rounded-lg border border-border px-4 py-5 text-sm text-muted-foreground">
+              <p className="rounded-xl border border-border bg-surface px-4 py-5 text-sm text-muted-foreground">
                 Nothing has been paid out yet.
               </p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {stats!.totalDistributed.map((t) => (
-                  <div key={t.tokenSymbol} className="rounded-lg border border-border px-4 py-3">
-                    <p className="font-mono text-lg tabular-nums">
-                      {formatAmountWithSymbol(BigInt(t.total), t.tokenDecimals, t.tokenSymbol)}
+                  <div key={t.tokenSymbol} className="rounded-xl border border-border px-4 py-4">
+                    <p className="font-mono text-xs text-muted-foreground">{t.tokenSymbol}</p>
+                    <p className="mt-1 font-mono text-xl tabular-nums">
+                      {formatAmount(BigInt(t.total), t.tokenDecimals)}
                     </p>
                   </div>
                 ))}
               </div>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="mt-2.5 text-xs text-muted-foreground">
               Grouped by token — amounts in different tokens aren&apos;t comparable, so they are
               never summed into one figure.
             </p>
           </section>
 
           <section>
-            <h2 className="mb-3 text-sm font-medium text-muted-foreground">Recent activity</h2>
-            <div className="overflow-hidden rounded-lg border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted text-left text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Name</th>
-                    <th className="px-4 py-2 font-medium">Token</th>
-                    <th className="px-4 py-2 text-right font-medium">Recipients</th>
-                    <th className="px-4 py-2 text-right font-medium">Total</th>
-                    <th className="px-4 py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.map((d) => (
-                    <tr key={d.id} className="border-t border-border">
-                      <td className="px-4 py-2.5">{d.name}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs">{d.tokenSymbol}</td>
-                      <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-                        {d.recipientCount}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-                        {formatAmountWithSymbol(BigInt(d.totalAmount), d.tokenDecimals, "")}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <StatusBadge status={d.status} />
-                      </td>
+            <SectionHeading>Recent activity</SectionHeading>
+            <div className="overflow-hidden rounded-xl border border-border">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface text-left text-xs text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-2.5 font-medium">Name</th>
+                      <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Token</th>
+                      <th className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">
+                        Recipients
+                      </th>
+                      <th className="px-4 py-2.5 text-right font-medium">Total</th>
+                      <th className="px-4 py-2.5 font-medium">Status</th>
+                      <th className="hidden px-4 py-2.5 font-medium md:table-cell">Created</th>
+                      <th className="w-8 px-2 py-2.5" aria-hidden />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {recent.map((d) => (
+                      <tr
+                        key={d.id}
+                        className="group relative border-t border-border transition-colors hover:bg-surface"
+                      >
+                        <td className="px-4 py-3">
+                          {/* The row is a link to the detail page — the whole
+                              cell is the hit target for pointer + keyboard. */}
+                          <Link
+                            href={`/dashboard/${d.id}`}
+                            className="font-medium outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline"
+                          >
+                            {d.name}
+                          </Link>
+                        </td>
+                        <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">
+                          {d.tokenSymbol}
+                        </td>
+                        <td className="hidden px-4 py-3 text-right font-mono tabular-nums sm:table-cell">
+                          {d.recipientCount}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono tabular-nums">
+                          {formatAmount(BigInt(d.totalAmount), d.tokenDecimals)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={d.status} />
+                        </td>
+                        <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
+                          {new Date(d.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-2 py-3 text-right">
+                          <ChevronRight className="ml-auto size-4 text-muted-foreground/50 transition-colors group-hover:text-muted-foreground" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
-        </>
+        </div>
       )}
 
       <ScheduledNotice />
@@ -121,27 +155,35 @@ export default async function DashboardPage() {
   );
 }
 
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <h2 className="mb-3 text-sm font-medium text-muted-foreground">{children}</h2>;
+}
+
 function Stat({ label, value, emphasise }: { label: string; value: number; emphasise?: boolean }) {
   return (
-    <div className="rounded-lg border border-border px-4 py-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 font-mono text-2xl tabular-nums ${emphasise ? "text-destructive" : ""}`}>
+    <div className="bg-background px-4 py-4">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={`mt-1 font-mono text-2xl tabular-nums ${emphasise ? "text-warning" : "text-foreground"}`}
+      >
         {value}
-      </p>
+      </dd>
     </div>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
-      <Inbox className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden />
+    <div className="rounded-xl border border-dashed border-border bg-surface px-6 py-20 text-center">
+      <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-xl border border-border bg-background">
+        <Inbox className="size-5 text-muted-foreground" aria-hidden />
+      </div>
       <h2 className="text-base font-medium">Create your first distribution</h2>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+      <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">
         Import a CSV of addresses and amounts, choose a token, and pay everyone at once — instead of
         one transaction at a time.
       </p>
-      <div className="mt-5">
+      <div className="mt-6">
         <Button size="sm" render={<Link href="/dashboard/new" />}>
           <Plus />
           New distribution
@@ -159,12 +201,17 @@ function EmptyState() {
  */
 function ScheduledNotice() {
   return (
-    <p className="mt-10 border-t border-border pt-4 text-xs text-muted-foreground">
+    <p className="mt-12 border-t border-border pt-5 text-xs text-muted-foreground">
       Scheduled distributions and upcoming executions arrive with the escrow contracts. Today every
       distribution executes immediately, while you sign.{" "}
-      <Link href="/dashboard" className="underline underline-offset-4">
+      <a
+        href="https://github.com/tweetbysobur/distro/blob/main/docs/ROADMAP.md"
+        target="_blank"
+        rel="noreferrer"
+        className="underline underline-offset-4 hover:text-foreground"
+      >
         Roadmap
-      </Link>
+      </a>
     </p>
   );
 }
