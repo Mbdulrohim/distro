@@ -44,7 +44,7 @@ export function CreateFlow() {
   const [recipients, setRecipients] = useState<ValidRecipient[]>([]);
   const [recipientsOk, setRecipientsOk] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Execute-now is the only mode the deployed stack supports; the scheduled
@@ -95,8 +95,8 @@ export function CreateFlow() {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "Could not save the distribution.");
       }
-      await res.json();
-      setSaved(true);
+      const { id } = (await res.json()) as { id: string };
+      setSavedId(id);
       setSaving(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -186,17 +186,16 @@ export function CreateFlow() {
                 {error}
               </p>
             ) : null}
-            {saved ? (
+            {savedId ? (
               <div className="flex flex-col gap-3 border-t border-border pt-6">
                 <p className="text-sm text-muted-foreground">
                   Draft saved. This next step moves real tokens and cannot be undone.
                 </p>
                 <ExecutePanel
+                  distributionId={savedId}
                   token={token}
                   recipients={recipients}
-                  onComplete={() => {
-                    router.refresh();
-                  }}
+                  onComplete={() => router.push(`/dashboard/${savedId}`)}
                 />
               </div>
             ) : chainId !== undefined && !isMultisendDeployed(chainId) ? (

@@ -11,6 +11,33 @@ import { formatAmountWithSymbol } from "@/lib/recipients/format";
 import type { ValidRecipient } from "@/lib/recipients/types";
 import type { TokenSelection } from "@/lib/tokens/types";
 
+/** Post one batch's decoded receipt to the server. Failure here must not lose
+ * the run — the chain is the source of truth and the endpoint is idempotent, so
+ * a retry can always reconcile. */
+async function persistBatch(distributionId: string, r: BatchResult): Promise<void> {
+  try {
+    await fetch(`/api/distributions/${distributionId}/results`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        batchIndex: r.batchIndex,
+        txHash: r.txHash,
+        blockNumber: r.blockNumber.toString(),
+        gasUsed: r.gasUsed.toString(),
+        payments: r.payments.map((p) => ({
+          recipient: p.recipient,
+          amount: p.amount.toString(),
+          index: p.index,
+          status: p.status,
+        })),
+      }),
+    });
+  } catch (e) {
+    console.error("Failed to persist batch results; chain state is unaffected", e);
+  }
+}
+
 /**
  * The send. Drives approve → batched distribute → results, and reports what
  * actually happened rather than what was hoped for.
@@ -27,6 +54,8 @@ import type { TokenSelection } from "@/lib/tokens/types";
 type Phase = "idle" | "running" | "done" | "error";
 
 interface ExecutePanelProps {
+  /** Persist results against this distribution. */
+  distributionId: string;
   token: TokenSelection;
   recipients: ValidRecipient[];
   /** Recipients per transaction — derived from measured Monad gas. */
@@ -35,6 +64,7 @@ interface ExecutePanelProps {
 }
 
 export function ExecutePanel({
+  distributionId,
   token,
   recipients,
   batchSize = 150,
@@ -97,6 +127,10 @@ export function ExecutePanel({
               t.map((x) => (x.hash === ev.result.txHash ? { ...x, confirmed: true } : x)),
             );
             setResults((r) => [...r, ev.result]);
+            // Record immediately, per batch — not at the end. If the tab closes
+            // mid-run the money has still moved, and the record must survive it.
+            // The endpoint is idempotent, so a repeat is harmless.
+            await persistBatch(distributionId, ev.result);
             break;
           case "done":
             setStatus("");
