@@ -165,46 +165,65 @@ export function CreateFlow() {
           </div>
         ) : null}
 
+        {/* Review and send are two acts, and only one is ever on screen. Before
+            save: the review, whose button says "Continue to send" (it saves a
+            draft — it must not claim to distribute). After save: the send step
+            alone, so there are never two competing distribute buttons (punch
+            list P0). */}
         {step === "review" && token ? (
-          <div className="flex flex-col gap-6">
-            <DistributionReview
-              name={name}
-              token={token}
-              recipients={recipients}
-              schedule={schedule}
-              balance={token.balance}
-              onEdit={() => setStep("recipients")}
-              onCancel={() => router.push("/dashboard")}
-              onConfirm={onConfirm}
-              isConfirming={saving}
-            />
-            {error ? (
-              <p
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                {error}
-              </p>
-            ) : null}
-            {savedId ? (
-              <div className="flex flex-col gap-3 border-t border-border pt-6">
-                <p className="text-sm text-muted-foreground">
-                  Draft saved. This next step moves real tokens and cannot be undone.
+          savedId ? (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Send {name || "distribution"}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Draft saved. This step moves real tokens and cannot be undone.
                 </p>
-                <ExecutePanel
-                  distributionId={savedId}
-                  token={token}
-                  recipients={recipients}
-                  onComplete={() => router.push(`/dashboard/${savedId}`)}
-                />
               </div>
-            ) : chainId !== undefined && !isMultisendDeployed(chainId) ? (
-              <p className="text-xs text-muted-foreground">
-                Saving records this as a draft. Distro isn&apos;t deployed on this network, so it
-                can&apos;t be sent from here.
-              </p>
-            ) : null}
-          </div>
+              <ExecutePanel
+                distributionId={savedId}
+                token={token}
+                recipients={recipients}
+                onComplete={() => router.push(`/dashboard/${savedId}`)}
+              />
+              <button
+                onClick={() => router.push(`/dashboard/${savedId}`)}
+                className="self-start text-sm text-muted-foreground hover:text-foreground"
+              >
+                View distribution →
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <DistributionReview
+                name={name}
+                token={token}
+                recipients={recipients}
+                schedule={schedule}
+                balance={token.balance}
+                confirmLabel="Continue to send"
+                onEdit={() => setStep("recipients")}
+                onCancel={() => router.push("/dashboard")}
+                onConfirm={onConfirm}
+                isConfirming={saving}
+              />
+              {error ? (
+                <p
+                  role="alert"
+                  className="rounded-md border border-destructive/30 bg-destructive-surface px-3 py-2 text-sm text-destructive"
+                >
+                  {error}
+                </p>
+              ) : null}
+              {chainId !== undefined && !isMultisendDeployed(chainId) ? (
+                <p className="text-xs text-muted-foreground">
+                  Heads up: Distro isn&apos;t deployed on this network, so this distribution can be
+                  saved as a draft but not sent from here.
+                </p>
+              ) : null}
+            </div>
+          )
         ) : null}
       </div>
     </div>

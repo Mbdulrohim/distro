@@ -8,6 +8,7 @@ import { executeDistribution, type BatchResult } from "@/lib/distributions/execu
 import { isMultisendDeployed, getMultisendAddress } from "@/config/contracts";
 import { truncateAddress } from "@/lib/format";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
+import { maxRecipientsPerBatch } from "@/lib/gas/estimate";
 import type { ValidRecipient } from "@/lib/recipients/types";
 import type { TokenSelection } from "@/lib/tokens/types";
 
@@ -58,7 +59,8 @@ interface ExecutePanelProps {
   distributionId: string;
   token: TokenSelection;
   recipients: ValidRecipient[];
-  /** Recipients per transaction — derived from measured Monad gas. */
+  /** Recipients per transaction. Defaults to the same gas-derived size the
+   * review screen uses, so the promised transaction count matches reality. */
   batchSize?: number;
   onComplete?: (results: BatchResult[]) => void;
 }
@@ -67,9 +69,11 @@ export function ExecutePanel({
   distributionId,
   token,
   recipients,
-  batchSize = 150,
+  batchSize,
   onComplete,
 }: ExecutePanelProps) {
+  // One source of truth for batch sizing, shared with DistributionReview.
+  const effectiveBatchSize = batchSize ?? maxRecipientsPerBatch();
   const config = useConfig();
   const { address: account, chainId } = useAccount();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -96,7 +100,7 @@ export function ExecutePanel({
         token: token.address,
         account,
         entries: recipients.map((r) => ({ address: r.address, amount: r.amount })),
-        batchSize,
+        batchSize: effectiveBatchSize,
       });
 
       for await (const ev of stream) {

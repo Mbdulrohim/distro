@@ -37,6 +37,12 @@ interface DistributionReviewProps {
   onCancel?: () => void;
   onConfirm?: () => void;
   isConfirming?: boolean;
+  /**
+   * Override for the confirm button. The create flow passes "Continue to send"
+   * because its `onConfirm` *saves a draft* and then reveals the send step — so
+   * a "Distribute now" label there would claim to move money it doesn't move.
+   */
+  confirmLabel?: string;
 }
 
 export function DistributionReview({
@@ -50,6 +56,7 @@ export function DistributionReview({
   onCancel,
   onConfirm,
   isConfirming = false,
+  confirmLabel,
 }: DistributionReviewProps) {
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -208,10 +215,9 @@ export function DistributionReview({
         ) : null}
         <Button onClick={onConfirm} disabled={!canConfirm}>
           {isConfirming
-            ? "Check your wallet…"
-            : schedule.mode === "now"
-              ? "Distribute now"
-              : "Schedule distribution"}
+            ? "Saving…"
+            : (confirmLabel ??
+              (schedule.mode === "now" ? "Distribute now" : "Schedule distribution"))}
         </Button>
       </div>
     </div>
