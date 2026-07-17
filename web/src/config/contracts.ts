@@ -20,14 +20,23 @@ interface ChainContracts {
 
 const CONTRACTS: Record<number, ChainContracts> = {
   [MONAD_MAINNET_CHAIN_ID]: {
-    // Not deployed. Blocked on: measured MIN_GAS_PER_TRANSFER (F3) and an
-    // external audit — see docs/ROADMAP.md. Do not fill this in to "unblock"
-    // the UI; an unaudited mainnet address is how people lose payroll.
+    // DEPLOYED but deliberately NOT wired in:
+    //   0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538 (block 88344367)
+    //
+    // The contract is UNAUDITED. Deploying it endangered nobody — it is
+    // ownerless, stateless, and holds nothing. Risk begins the moment real
+    // tokens are approved to it, which is exactly what filling this in would
+    // enable. docs/CTO_REVIEW.md makes an external audit blocking for
+    // mainnet, and the PRD's bar is "zero funds lost".
+    //
+    // Do not populate this to "unblock" the UI. Prove execution on testnet,
+    // get the audit, then wire it. See contracts/deployments/monad-mainnet.json.
     multisend: undefined,
   },
   [MONAD_TESTNET_CHAIN_ID]: {
-    // Populate from `forge script script/DeployMultisend.s.sol` output.
-    multisend: undefined,
+    // Verified byte-for-byte against out/Multisend.sol/Multisend.json.
+    // contracts/deployments/monad-testnet.json — keep both in sync.
+    multisend: "0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538",
   },
 };
 
