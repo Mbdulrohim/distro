@@ -1,19 +1,20 @@
 import { createConfig, http } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { monadMainnet } from "@/config/chains";
+import { supportedChains } from "@/config/chains";
 
 /**
- * Mainnet-only wagmi config. Single chain (Monad Mainnet, id 143) — the app
- * must never connect to any other network. The injected connector covers
- * browser-extension wallets (MetaMask, Rabby, etc.); add WalletConnect here
- * once a project id is provisioned (NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID).
+ * wagmi config. Chains come from `supportedChains` — mainnet always, plus
+ * testnet only when staging is explicitly enabled. A production build without
+ * NEXT_PUBLIC_ENABLE_TESTNET is mainnet-only, so the app cannot connect to
+ * any other network.
+ *
+ * The injected connector covers browser-extension wallets (MetaMask, Rabby).
+ * Add WalletConnect once a project id is provisioned.
  */
 export const wagmiConfig = createConfig({
-  chains: [monadMainnet],
+  chains: supportedChains,
   connectors: [injected({ shimDisconnect: true })],
-  transports: {
-    [monadMainnet.id]: http(),
-  },
+  transports: Object.fromEntries(supportedChains.map((c) => [c.id, http()])),
   ssr: true,
 });
 

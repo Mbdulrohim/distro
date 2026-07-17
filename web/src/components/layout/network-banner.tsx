@@ -2,7 +2,7 @@
 
 import { useAccount, useSwitchChain } from "wagmi";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { MONAD_MAINNET_CHAIN_ID } from "@/config/chains";
+import { MONAD_MAINNET_CHAIN_ID, isSupportedChain, isStagingEnabled } from "@/config/chains";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -24,7 +24,8 @@ export function NetworkBanner() {
   const { switchChain, isPending } = useSwitchChain();
 
   // Silent when correct, or when there's no wallet to be on a network at all.
-  if (!isConnected || chainId === MONAD_MAINNET_CHAIN_ID) return null;
+  // In a production build only mainnet is supported, so behaviour is unchanged.
+  if (!isConnected || isSupportedChain(chainId)) return null;
 
   return (
     <div
@@ -34,7 +35,8 @@ export function NetworkBanner() {
       <div className="flex items-center gap-2 text-warning">
         <AlertTriangle className="size-4 shrink-0" />
         <span>
-          Wrong network. Distro runs on <strong>Monad Mainnet</strong> only — actions stay disabled
+          Wrong network. Distro runs on <strong>Monad Mainnet</strong>
+          {isStagingEnabled ? " (or Monad Testnet in staging)" : " only"} — actions stay disabled
           until you switch.
         </span>
       </div>

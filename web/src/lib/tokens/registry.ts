@@ -81,6 +81,10 @@ const MONAD_MAINNET_TOKENS: RegistryToken[] = [
 
 /** Supported tokens for a chain. Any other token is usable via custom address. */
 export function getSupportedTokens(chainId: number): RegistryToken[] {
+  // Mainnet has a curated, on-chain-verified list. Testnet deliberately has
+  // none: its token addresses are unrelated to mainnet's, and shipping an
+  // unverified testnet list is exactly the "invented address" failure mode
+  // CLAUDE.md forbids. On staging, paste the token address instead.
   return chainId === MONAD_MAINNET_CHAIN_ID ? MONAD_MAINNET_TOKENS : [];
 }
 

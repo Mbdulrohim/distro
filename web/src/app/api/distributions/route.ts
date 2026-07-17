@@ -5,7 +5,7 @@ import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { createDistributionSchema, computeTotal } from "@/lib/validation/distribution";
-import { MONAD_MAINNET_CHAIN_ID } from "@/config/chains";
+import { isSupportedChain } from "@/config/chains";
 
 /**
  * Create a draft distribution with its recipients.
@@ -37,9 +37,13 @@ export async function POST(request: Request) {
   }
   const input = parsed.data;
 
-  // Mainnet-only is an invariant of the product, not a client preference.
-  if (input.chainId !== MONAD_MAINNET_CHAIN_ID) {
-    return NextResponse.json({ error: "Distro runs on Monad Mainnet only." }, { status: 400 });
+  // The supported-chain set is an invariant of the build, not a client
+  // preference. Production (staging off) accepts mainnet only.
+  if (!isSupportedChain(input.chainId)) {
+    return NextResponse.json(
+      { error: "Unsupported network for this deployment." },
+      { status: 400 },
+    );
   }
 
   const userId = await findUserId(session.address);

@@ -6,7 +6,7 @@ import { useAccount, useConnect, useDisconnect, useSignMessage, useSwitchChain }
 import { injected } from "wagmi/connectors";
 import { createSiweMessage } from "viem/siwe";
 import { getAddress } from "viem";
-import { MONAD_MAINNET_CHAIN_ID } from "@/config/chains";
+import { MONAD_MAINNET_CHAIN_ID, isSupportedChain } from "@/config/chains";
 import { SIWE_STATEMENT } from "@/lib/auth/constants";
 import { fetchSession, fetchNonce, verifySignature, logout as logoutApi } from "@/lib/auth/api";
 
@@ -44,9 +44,12 @@ export function useAuth() {
       }
       if (!account) throw new Error("No wallet account available.");
 
-      // 2. Enforce Monad Mainnet before signing.
-      if (chainId !== MONAD_MAINNET_CHAIN_ID) {
-        await switchChainAsync({ chainId: MONAD_MAINNET_CHAIN_ID });
+      // 2. Sign on a supported chain. Stay on the connected one when it's
+      // supported (so a staging build can sign in on testnet); otherwise pull
+      // the wallet to mainnet, which is always supported and the default.
+      const signChainId = isSupportedChain(chainId) ? chainId! : MONAD_MAINNET_CHAIN_ID;
+      if (chainId !== signChainId) {
+        await switchChainAsync({ chainId: signChainId });
       }
 
       // 3. Nonce → SIWE message → signature.
@@ -57,7 +60,7 @@ export function useAuth() {
         statement: SIWE_STATEMENT,
         uri: window.location.origin,
         version: "1",
-        chainId: MONAD_MAINNET_CHAIN_ID,
+        chainId: signChainId,
         nonce,
         issuedAt: new Date(),
       });
@@ -92,7 +95,8 @@ export function useAuth() {
     /** Wallet-level connection (may be connected but not yet SIWE-signed). */
     isWalletConnected: isConnected,
     connectedAddress,
-    isOnMonadMainnet: chainId === MONAD_MAINNET_CHAIN_ID,
+    isOnSupportedChain: isSupportedChain(chainId),
+    chainId,
     signIn: signIn.mutateAsync,
     isSigningIn: signIn.isPending,
     signInError: signIn.error,

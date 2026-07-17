@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { parseSiweMessage } from "viem/siwe";
 import { getAddress } from "viem";
-import { verifySignIn, MONAD_MAINNET_CHAIN_ID } from "@/lib/auth/siwe";
+import { verifySignIn } from "@/lib/auth/siwe";
+import { isSupportedChain } from "@/config/chains";
 import { createSessionToken } from "@/lib/auth/session";
 import { ensureUser } from "@/lib/db/users";
 import { NONCE_COOKIE, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/constants";
@@ -11,7 +12,8 @@ import { NONCE_COOKIE, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/co
  * Verify a signed SIWE message and, on success, issue a session cookie.
  *
  * Rejects (401) unless the signature is valid AND the message is bound to the
- * nonce this server issued, this deployment's domain, and Monad Mainnet.
+ * nonce this server issued, this deployment's domain, and a chain this build
+ * supports (mainnet always; testnet only when staging is enabled).
  */
 export async function POST(request: Request) {
   let body: { message?: unknown; signature?: unknown };
@@ -38,10 +40,14 @@ export async function POST(request: Request) {
     );
   }
 
-  // Enforce mainnet-only before spending a verification round-trip.
+  // Reject an unsupported chain before spending a verification round-trip.
+  // In a production build (staging off) this is mainnet-only, unchanged.
   const parsed = parseSiweMessage(message);
-  if (parsed.chainId !== MONAD_MAINNET_CHAIN_ID) {
-    return NextResponse.json({ error: "Sign-in must be on Monad Mainnet." }, { status: 400 });
+  if (!isSupportedChain(parsed.chainId)) {
+    return NextResponse.json(
+      { error: "Sign-in must be on a supported Monad network." },
+      { status: 400 },
+    );
   }
   if (!parsed.address) {
     return NextResponse.json({ error: "Malformed SIWE message." }, { status: 400 });
@@ -54,6 +60,7 @@ export async function POST(request: Request) {
     signature: signature as `0x${string}`,
     expectedNonce,
     expectedDomain,
+    chainId: parsed.chainId!,
   });
 
   if (!valid) {
@@ -79,7 +86,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = await createSessionToken(address, MONAD_MAINNET_CHAIN_ID);
+  const token = await createSessionToken(address, parsed.chainId!);
 
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { TokenSelector } from "@/components/tokens/token-selector";
 import { RecipientManager } from "@/components/recipients/recipient-manager";
 import { DistributionReview } from "@/components/distributions/distribution-review";
-import { MONAD_MAINNET_CHAIN_ID } from "@/config/chains";
-import { getMultisendAddress } from "@/config/contracts";
+import { useAccount } from "wagmi";
+import { isMultisendDeployed, getMultisendAddress } from "@/config/contracts";
+import { ExecutePanel } from "@/components/distributions/execute-panel";
 import type { TokenSelection } from "@/lib/tokens/types";
 import type { ValidRecipient } from "@/lib/recipients/types";
 import type { ScheduleDraft } from "@/lib/schedule/types";
@@ -28,18 +29,22 @@ const STEPS: { id: Step; label: string }[] = [
  * Client validation is for fast feedback only; the server re-validates
  * authoritatively on submit and recomputes the total from the rows.
  *
- * Execution is deliberately NOT wired: `Multisend` isn't deployed, so this
- * saves a draft and stops. Offering a "Distribute" button that cannot move
- * money would be worse than not offering one.
+ * Saving and sending are two distinct acts, in that order. The draft is
+ * persisted first so a record exists no matter what the wallet does next —
+ * then `ExecutePanel` moves the money. The send only appears once the draft
+ * is saved, and only on a chain where `Multisend` is actually deployed;
+ * otherwise it says so plainly rather than offering a button that can't work.
  */
 export function CreateFlow() {
   const router = useRouter();
+  const { chainId } = useAccount();
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
   const [token, setToken] = useState<TokenSelection | undefined>();
   const [recipients, setRecipients] = useState<ValidRecipient[]>([]);
   const [recipientsOk, setRecipientsOk] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Execute-now is the only mode the deployed stack supports; the scheduled
@@ -75,11 +80,11 @@ export function CreateFlow() {
         credentials: "same-origin",
         body: JSON.stringify({
           name: name.trim(),
-          chainId: MONAD_MAINNET_CHAIN_ID,
+          chainId: chainId!,
           tokenAddress: token.address,
           tokenSymbol: token.symbol,
           tokenDecimals: token.decimals,
-          multisendAddress: getMultisendAddress(MONAD_MAINNET_CHAIN_ID),
+          multisendAddress: getMultisendAddress(chainId!),
           recipients: recipients.map((r) => ({
             address: r.address,
             amount: r.amount.toString(),
@@ -91,8 +96,8 @@ export function CreateFlow() {
         throw new Error(body.error ?? "Could not save the distribution.");
       }
       await res.json();
-      router.push("/dashboard");
-      router.refresh();
+      setSaved(true);
+      setSaving(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setSaving(false);
@@ -181,10 +186,25 @@ export function CreateFlow() {
                 {error}
               </p>
             ) : null}
-            <p className="text-xs text-muted-foreground">
-              Saving records the distribution as a draft. Sending funds needs the contract deployed
-              — that step isn&apos;t live yet.
-            </p>
+            {saved ? (
+              <div className="flex flex-col gap-3 border-t border-border pt-6">
+                <p className="text-sm text-muted-foreground">
+                  Draft saved. This next step moves real tokens and cannot be undone.
+                </p>
+                <ExecutePanel
+                  token={token}
+                  recipients={recipients}
+                  onComplete={() => {
+                    router.refresh();
+                  }}
+                />
+              </div>
+            ) : chainId !== undefined && !isMultisendDeployed(chainId) ? (
+              <p className="text-xs text-muted-foreground">
+                Saving records this as a draft. Distro isn&apos;t deployed on this network, so it
+                can&apos;t be sent from here.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
