@@ -30,7 +30,7 @@ Precise, trustworthy, understated. Confident about correctness rather than hype 
 
 ## Anti-references
 
-Generic crypto/DeFi visual language: neon gradients, glassmorphism-heavy dashboards, degen/hype copy, excessive motion for its own sake. Distro should read closer to Stripe, Linear, Mercury, and Vercel than to a typical token-launch site.
+Generic crypto/DeFi visual language: neon gradients, glassmorphism-heavy dashboards, degen/hype copy, excessive motion for its own sake. Distro should read closer to Stripe, Linear, Mercury, and Vercel than to a typical token-launch site. The brand colour is a restrained enterprise **violet** (Stripe/Linear register) on a white-dominant, soft-lavender canvas — this is deliberately _not_ the neon "crypto purple" the rest of this line rejects. See DESIGN.md.
 
 ## Design Principles
 

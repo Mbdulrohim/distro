@@ -1,35 +1,43 @@
 ---
 name: Distro
-description: Onchain distribution engine for Monad — the design system for a payments product that moves real money on a schedule.
+description: Enterprise onchain distribution platform on Monad — a premium, white-dominant, violet fintech design system.
 colors:
-  # Neutrals — monochrome-first, OKLCH, chroma 0. Light is canonical; dark is first-class.
+  # --- Canvas & ink (white-dominant, cool-tinted toward the brand) ---
   background: "oklch(1 0 0)"
-  foreground: "oklch(0.145 0 0)"
-  surface: "oklch(0.985 0 0)"
-  surface-2: "oklch(0.97 0 0)"
-  muted-foreground: "oklch(0.505 0 0)"
-  border: "oklch(0.922 0 0)"
-  ring: "oklch(0.50 0.17 255)"
-  # Primary = ink. Monochrome by intent; the accent is NOT the primary action color.
-  primary: "oklch(0.205 0 0)"
-  primary-foreground: "oklch(0.985 0 0)"
-  # Functional semantic set — every hue means a payment state, nothing decorative.
-  info: "oklch(0.50 0.17 255)"
-  info-surface: "oklch(0.965 0.02 255)"
-  success: "oklch(0.50 0.14 150)"
+  surface: "oklch(0.985 0.012 290)"
+  lavender: "oklch(0.975 0.018 290)"
+  lavender-strong: "oklch(0.955 0.028 290)"
+  foreground: "oklch(0.21 0.015 285)"
+  muted-foreground: "oklch(0.48 0.03 285)"
+  border: "oklch(0.91 0.015 290)"
+  border-strong: "oklch(0.86 0.02 290)"
+  ring: "oklch(0.53 0.22 285)"
+  # --- Brand: violet. The interactive + brand colour, NOT a payment state. ---
+  primary: "oklch(0.53 0.22 285)"
+  primary-hover: "oklch(0.47 0.21 285)"
+  primary-foreground: "oklch(1 0 0)"
+  primary-surface: "oklch(0.965 0.03 290)"
+  # --- Functional semantics: each hue carries a payment MEANING. ---
+  success: "oklch(0.52 0.15 150)"
   success-surface: "oklch(0.965 0.03 150)"
-  warning: "oklch(0.55 0.12 75)"
-  warning-surface: "oklch(0.97 0.04 85)"
+  warning: "oklch(0.52 0.11 70)"
+  warning-surface: "oklch(0.97 0.05 80)"
   destructive: "oklch(0.55 0.22 27)"
   destructive-surface: "oklch(0.965 0.02 27)"
 typography:
   display:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "3rem"
+    fontWeight: 600
+    lineHeight: 1.05
+    letterSpacing: "-0.03em"
+  h1:
+    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.875rem"
     fontWeight: 600
     lineHeight: 1.15
     letterSpacing: "-0.02em"
-  headline:
+  h2:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.375rem"
     fontWeight: 600
@@ -46,28 +54,24 @@ typography:
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.55
-    letterSpacing: "0"
   label:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 500
     lineHeight: 1.3
-    letterSpacing: "0"
   mono:
     fontFamily: "Geist Mono, ui-monospace, SFMono-Regular, monospace"
     fontSize: "0.8125rem"
     fontWeight: 450
     lineHeight: 1.4
-    letterSpacing: "0"
     fontFeature: "'tnum' 1, 'zero' 1"
 rounded:
   sm: "0.375rem"
-  md: "0.5rem"
-  lg: "0.625rem"
-  xl: "0.875rem"
+  md: "0.625rem"
+  lg: "0.875rem"
+  xl: "1.125rem"
   full: "9999px"
 spacing:
-  px: "1px"
   0.5: "0.125rem"
   1: "0.25rem"
   2: "0.5rem"
@@ -79,265 +83,266 @@ spacing:
   10: "2.5rem"
   12: "3rem"
   16: "4rem"
+  20: "5rem"
+  24: "6rem"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-foreground}"
     rounded: "{rounded.md}"
     padding: "0.5rem 1rem"
-    height: "2.25rem"
+    height: "2.375rem"
   button-secondary:
-    backgroundColor: "{colors.surface-2}"
+    backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.md}"
     padding: "0.5rem 1rem"
-    height: "2.25rem"
+    height: "2.375rem"
   button-ghost:
     backgroundColor: "transparent"
     textColor: "{colors.foreground}"
     rounded: "{rounded.md}"
     padding: "0.5rem 0.75rem"
-    height: "2.25rem"
-  button-destructive:
-    backgroundColor: "{colors.destructive-surface}"
-    textColor: "{colors.destructive}"
-    rounded: "{rounded.md}"
-    padding: "0.5rem 1rem"
-    height: "2.25rem"
+    height: "2.375rem"
+  card:
+    backgroundColor: "{colors.background}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.lg}"
+    padding: "1.5rem"
   input:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.md}"
     padding: "0.5rem 0.75rem"
-    height: "2.25rem"
-  card:
-    backgroundColor: "{colors.background}"
-    textColor: "{colors.foreground}"
-    rounded: "{rounded.lg}"
-    padding: "1.25rem"
+    height: "2.375rem"
   status-badge:
-    backgroundColor: "{colors.surface-2}"
-    textColor: "{colors.muted-foreground}"
-    rounded: "{rounded.sm}"
-    padding: "0.125rem 0.5rem"
+    backgroundColor: "{colors.success-surface}"
+    textColor: "{colors.success}"
+    rounded: "{rounded.full}"
+    padding: "0.125rem 0.625rem"
     typography: "{typography.label}"
-  table-cell:
-    backgroundColor: "{colors.background}"
-    textColor: "{colors.foreground}"
-    padding: "0.625rem 1rem"
-    typography: "{typography.mono}"
 ---
 
 # Design System: Distro
 
 ## 1. Overview
 
-**Creative North Star: "The Instrument Panel"**
+**Creative North Star: "Quiet Infrastructure."**
 
-Distro moves payroll. The interface should feel the way a good instrument panel feels: everything legible at a glance, nothing decorative competing with the reading you actually need, and total confidence that what it shows is true. This is not a marketing surface and must never behave like one. It is a precise tool a finance or ops lead trusts with real money on a deadline — closer to the transfer confirmation screen of a bank you respect than to a token-launch site.
+Distro moves other people's payroll. The interface has to feel the way an enterprise treasury tool feels when it's trustworthy: calm, exact, and unmistakably premium — the kind of surface a finance lead relaxes when they see, because it signals _this was built by people who take money seriously._ The reference points are Stripe, Linear, Vercel, and Mercury: white-dominant, softly violet, generous with space, restrained with ornament.
 
-The system is **monochrome-first**. Structure comes from a near-grayscale surface hierarchy and a disciplined type scale; **color is reserved almost entirely for meaning** — a green figure is money that landed, a red one is money that didn't. This is the deliberate reject of the category's defaults: no neon, no gradients, no glassmorphism, no purple crypto sheen, no ornamental motion. Restraint is the brand. When every screen is quiet, the one colored thing on it — a failed payment, an irreversible-action warning — is impossible to miss, which is exactly the point.
+The system is **white-first with a violet soul.** White and the faintest lavender carry almost every surface; a single considered violet is the brand and the interactive language — primary actions, focus, selection, links. It is used with discipline, never sprayed. Color that _means something specific_ — a payment landed, a payment failed — comes from a separate functional set (green, amber, red) so the brand violet never has to double as a status.
 
-Density is earned. Where the user is scanning a thousand recipients, the UI goes dense and tabular; where the user is making an irreversible decision, it goes spacious and slow. The system supports both without changing its vocabulary.
+This is the deliberate correction of the crypto default. **No neon, no gradients on everything, no glassmorphism, no dark degen dashboards.** The violet is enterprise violet — deep, slightly cool, worn like Stripe wears its indigo — not a token-launch sheen. Premium here is subtraction: soft shadows instead of borders-everywhere, one accent instead of five, air instead of density where the stakes are high.
 
-**Key Characteristics:**
+**Key characteristics**
 
-- Monochrome-first; color always carries a payment meaning, never decoration.
-- Geist for everything human, Geist Mono for everything financial (addresses, amounts, hashes).
-- Flat by default — depth is a response to state, not an ambient texture.
-- Light is canonical, dark is fully first-class (both wired in OKLCH).
-- Calm at rest so that signal is loud when it matters.
+- White-dominant canvas; soft lavender for grouping and depth.
+- One violet, used for brand + interaction only — never as a payment status.
+- Functional green / amber / red carry payment meaning, and only that.
+- Geist for everything human; Geist Mono, tabular, for every address and amount.
+- Soft, low elevation — premium calm, not flat austerity.
+- Light is canonical; dark is a first-class violet-on-near-black companion.
 
-### Spatial system
+### Brand values, made visual
 
-A **4px base grid**. Every margin, padding, and gap is a multiple of 4 (`spacing` tokens `1`=4px … `16`=64px). Component internal rhythm favors 8/12/16; section rhythm favors 24/32/48. Vary spacing for hierarchy — a dense table row (10px vertical) and a review-step section (32px) are the same system at two densities, not two systems.
+- **Reliability** — nothing decorative competes with the data; every state is designed, including failure.
+- **Transparency** — amounts shown in full, both representations; every payment one click from its onchain proof.
+- **Simplicity** — one accent, one type family, a tight scale. Restraint reads as confidence.
+- **Security** — irreversible actions are spacious and slow; the loudest colour (red) is used the least.
+- **Automation** — motion is functional and quiet; the product feels like it runs itself, not like it's performing.
 
-**Grid & app shell.** A 12-column grid inside a max content width of **1200px** (dashboard) / **720px** (focused flows like review and execution — narrower on purpose, so an irreversible decision isn't spread across a wide field). The MVP shell is a **top header + content column**; a left sidebar is reserved in the token/layout vocabulary for when navigation grows, using `surface` as its slightly-recessed background.
+### Spatial system (spacing)
 
-**Responsive rules** are structural, not fluid — type sizes are fixed rem, layouts reflow at breakpoints:
+A **4px base grid**; every gap, pad, and margin is a multiple of 4 (`spacing` tokens `1`=4px … `24`=96px). Rhythm, not uniformity: dense data (table rows ~10–12px) and decisive moments (review sections 32–48px) are the same scale at two densities. Enterprise surfaces earn trust through _air_ — sections breathe at 64–96px; cards pad at 24px, never cramped.
 
-- **`sm` 640 / `md` 768 / `lg` 1024 / `xl` 1280.**
-- Below `md`: dense tables collapse from columns to stacked recipient rows (address + amount + status as a single card-like row); the header wallet control drops its address text to an icon.
-- Focused flows stay single-column at every width — they are already narrow.
-- Never fluid headings; a payroll total that resizes with the viewport reads as unstable.
+### Grid & layout
 
-### Motion doctrine
+12-column grid inside a **1200px** max for dashboards, **760px** for focused money flows (review, send) — narrower on purpose so an irreversible decision is never spread thin. App shell: a **left sidebar** (240px, `lavender` recessed fill) + top bar on wide screens; the sidebar collapses to a top bar below `lg`. Responsive behaviour is **structural** (collapse the nav, reflow columns, stack dense tables) — never fluid type.
 
-Motion conveys **state and continuity only** — never decoration, never a page-load performance. Durations **150–220ms**, easing **ease-out** (`cubic-bezier(0.16, 1, 0.3, 1)`), no bounce, no elastic. State changes (hover, focus, selection), enter/exit of menus and dialogs, skeleton→content swaps, and the live tally ticking up during execution are the entire motion budget. **The one place motion is allowed to be expressive** is a completed distribution's success confirmation — a single calm settle, once. Everything obeys `prefers-reduced-motion: reduce` with a crossfade or instant substitute.
+**Breakpoints:** `sm` 640 · `md` 768 · `lg` 1024 · `xl` 1280.
+
+### Radius system
+
+Softer than a utility tool, tighter than a consumer app — the enterprise-fintech middle. Base **10px** (`md`), scaling `sm` 6 · `md` 10 · `lg` 14 · `xl` 18 · `full`. Controls (buttons, inputs) use `md`; cards and panels use `lg`; modals `xl`; pills and avatars `full`. One family of curvature, applied consistently.
+
+### Motion principles
+
+Motion conveys **state and continuity**, never spectacle. Durations **140–220ms**; easing **ease-out** (`cubic-bezier(0.16, 1, 0.3, 1)`) — no bounce, no elastic. The permitted budget: hover and focus transitions, a card's ~1px shadow-lift on hover, menu/dialog enter-exit, skeleton→content crossfade, and the live tally ticking during a distribution. **One expressive moment only:** a completed distribution settles once, calmly. Everything honours `prefers-reduced-motion: reduce` with a crossfade or instant substitute. No page-load choreography — an enterprise tool loads into the task.
 
 ## 2. Colors
 
-A near-grayscale surface system carrying a tight, strictly functional semantic set. Light mode is canonical; every token has a dark pair.
+White-dominant, softly violet, with a strictly functional status set. Light is canonical; every token has a dark pair.
 
-### Primary
+### Primary — the brand violet
 
-- **Ink** (`oklch(0.205 0 0)` light / `oklch(0.922 0 0)` dark): the primary action color and strongest text weight. Primary buttons, the active nav item, headings. **Monochrome by intent** — the main call to action is near-black, not a brand hue. This is the Vercel/Linear posture and it is the brand's confidence.
+- **Primary** `oklch(0.53 0.22 285)` — Distro violet, an indigo-leaning fintech purple (Stripe/Linear register). White text passes AA on it (5.8:1). Primary buttons, active nav, links, focus, current selection. **This is brand and interaction — never a payment status.**
+- **Primary-hover** `oklch(0.47 0.21 285)` · **Primary-foreground** white · **Primary-surface** `oklch(0.965 0.03 290)` for tinted chips, selected rows, focus halos.
 
 ### Secondary
 
-Distro has no secondary _brand_ color. What would be an accent elsewhere is, here, the **Info** role below — a deliberate choice, not an omission.
+No second brand colour by design. A second accent would dilute the one that matters. "Secondary" actions are neutral (see Buttons).
 
-### Tertiary
+### Neutral (white & lavender)
 
-None. Adding one would dilute the functional-color doctrine.
+- **Background** white — the dominant surface.
+- **Surface** `oklch(0.985 0.012 290)` — the faintest lavender, for inset panels and table headers.
+- **Lavender** `oklch(0.975 0.018 290)` / **Lavender-strong** `oklch(0.955 0.028 290)` — section backgrounds and the sidebar; the "soft lavender" that signals grouping without weight.
+- **Foreground** `oklch(0.21 0.015 285)` — near-black, faintly cool toward the brand (a tinted neutral, not pure gray). 17:1 on white.
+- **Muted-foreground** `oklch(0.48 0.03 285)` — secondary text, labels, meta. **The floor** — it clears AA on _both_ white (6.6:1) and lavender (6.1:1), which is where muted grays usually fail.
+- **Border** `oklch(0.91 0.015 290)` hairlines · **Border-strong** for emphasis dividers.
 
-### Neutral
+### Semantic — functional, meaning-bearing
 
-- **Canvas** (`oklch(1 0 0)` / `oklch(0.145 0 0)`): the base background.
-- **Surface** (`oklch(0.985 0 0)` / `oklch(0.205 0 0)`): recessed panels, sidebars, table headers.
-- **Surface-2** (`oklch(0.97 0 0)` / `oklch(0.269 0 0)`): secondary buttons, hover fills, neutral badges.
-- **Ink** (foreground, above): primary text.
-- **Muted ink** (`oklch(0.505 0 0)` / `oklch(0.708 0 0)`): secondary/meta text, timestamps, column headers. **This is the floor** — never lighter for body text (it sits at ~4.6:1 on canvas; going lighter fails AA, the single most common design regression).
-- **Border** (`oklch(0.922 0 0)` / `oklch(1 0 0 / 10%)`): hairline dividers and rests-state component edges. Structure comes from borders, not shadows.
+Each has a solid (text/icon/border) tuned to ≥4.5:1 on white, and a surface tint (chip/banner):
 
-### Semantic (the functional palette)
+- **Success / Paid** `oklch(0.52 0.15 150)` — a confirmed payment. The product's best moment.
+- **Warning / Partial** `oklch(0.52 0.11 70)` — a partial run, a balance change; attention without alarm.
+- **Destructive / Failed** `oklch(0.55 0.22 27)` — failed payments, irreversible-action warnings. Loudest, so used least.
 
-Each role has a **solid** (text, icon, border) and a **surface** tint (chip/banner background). Solids are tuned to ≥4.5:1 on canvas.
+### Named rules
 
-- **Info / Interactive** (`oklch(0.50 0.17 255)`): focus rings, links, current selection, and the `pending`/`submitted`/scheduled state. This is the closest thing to an accent, and it appears on **≤10% of any screen**.
-- **Success / Paid** (`oklch(0.50 0.14 150)`): a confirmed payment, a completed distribution, the "verifiable onchain" checkmark. The product's happiest event.
-- **Warning** (`oklch(0.55 0.12 75)`): partial completion, "balance changed", unsupported-token notices — attention without alarm.
-- **Destructive / Failed** (`oklch(0.55 0.22 27)`): failed payments, irreversible-action warnings, destructive confirmations. The loudest thing in the system, so it is used the least.
+**The Brand-Isn't-A-Status Rule.** Violet is brand and interaction. Payment states are green / amber / red. A "Distribute" button is violet because it's the primary action — never green, because green means _paid_, and a button is not yet a payment.
 
-### Named Rules
+**The One-Violet Rule.** A single violet, used for primary action, current selection, focus, and links — nothing else. Its restraint is what makes it read premium rather than crypto.
 
-**The Functional Color Rule.** Color always carries a payment meaning. If an element is colored, a user must be able to say _what state that color denotes_. Nothing is tinted for brand flavor, warmth, or visual interest — the monochrome surface is the flavor.
-
-**The One Voice Rule.** Info/interactive blue appears on ≤10% of any screen. Its rarity is what makes a focused field or the current nav item legible instantly.
-
-**The Never-Color-Alone Rule.** State is never signaled by color alone. `Paid` is green _and_ a check _and_ the word; `Failed` is red _and_ an icon _and_ the word. This is both accessibility (color-blind users, ~8% of men) and the product's honesty principle — the meaning survives a grayscale screenshot.
+**The Never-Color-Alone Rule.** Status is never colour alone: `Paid` is green + a check + the word. The meaning survives a grayscale print and doesn't depend on hue discrimination.
 
 ## 3. Typography
 
-**Display / Body / Label Font:** Geist (with `ui-sans-serif, system-ui, sans-serif`)
-**Financial / Mono Font:** Geist Mono (with `ui-monospace, SFMono-Regular, monospace`)
+**Primary family:** Geist (with `ui-sans-serif, system-ui`). **Numeric / mono:** Geist Mono.
 
-**Character:** One humanist-geometric sans across the entire interface, in multiple weights — no display/body pairing, because a product UI earns trust through consistency, not contrast. Geist Mono is not a stylistic flourish; it is load-bearing. Every address, token amount, hash, and quantity is monospaced with **tabular figures**, so columns of numbers align to the digit and two addresses can be compared character by character.
+One humanist-geometric sans across the whole product — headings, labels, body, data — in multiple weights. No display/body pairing: enterprise UI earns trust through consistency, not contrast. Geist Mono is load-bearing, not stylistic: **every address, amount, hash, and token quantity is monospaced with tabular figures**, so columns align to the digit and two addresses compare character by character.
 
-### Hierarchy
+### Scale (fixed rem, ~1.2 ratio)
 
-Fixed rem, not fluid. Scale ratio ~1.2. More type roles than a brand site, lower contrast between them — noise is the enemy in dense UI.
+- **Display** 48px / 600 / -0.03em — marketing hero only.
+- **H1** 30px / 600 — page titles, one per screen.
+- **H2** 22px / 600 — section headers, the total on a review.
+- **Title** 16px / 600 — card headers, modal titles.
+- **Body** 14px / 400 — the default; prose caps 65–75ch.
+- **Label** 13px / 500 — form labels, buttons, column heads, badges. Sentence case, **never all-caps tracked eyebrows.**
+- **Mono** 13px / 450, tabular — all financial values.
 
-- **Display** (600, 1.875rem/30px, 1.15, -0.02em): page titles only (Dashboard, a distribution name). One per screen.
-- **Headline** (600, 1.375rem/22px, 1.25, -0.015em): section headers, the total on a review screen.
-- **Title** (600, 1rem/16px, 1.4): card headers, table captions, modal titles.
-- **Body** (400, 0.875rem/14px, 1.55): the default. Prose caps at 65–75ch; help text and explanations.
-- **Label** (500, 0.8125rem/13px, 1.3): form labels, buttons, column headers, badges. Sentence case, **never all-caps tracked eyebrows**.
-- **Mono** (450, 0.8125rem/13px, 1.4, tabular): addresses, amounts, tx hashes, token symbols, gas figures.
+### Named rules
 
-### Named Rules
+**The Monospace Money Rule.** No financial value ever renders in the proportional sans. Addresses, amounts, hashes, gas — always Geist Mono, tabular. Misaligned or ambiguous numbers are how money moves wrong.
 
-**The Monospace Money Rule.** Every address, amount, token quantity, and hash is set in Geist Mono with tabular figures (`font-feature-settings: 'tnum'`). No financial value ever appears in the proportional sans. This is non-negotiable — misaligned or ambiguous numbers are how money moves wrong.
+**The No-Eyebrow Rule.** No tiny uppercase tracked kickers, no `01 / 02 / 03` section markers as scaffolding. Hierarchy is size and weight.
 
-**The No-Eyebrow Rule.** No tiny uppercase letter-spaced kickers above sections, and no `01 / 02 / 03` numbered section markers. They are the marketing-page reflex this product explicitly rejects. Hierarchy comes from size and weight.
+## 4. Elevation (shadows)
 
-## 4. Elevation
+Unlike a pure utility tool, this system uses **soft, restrained elevation** — the Stripe/Mercury register — because premium enterprise surfaces read as gently lifted, not flat. Shadows are low-opacity and faintly cool (tinted toward the brand), never hard or gray.
 
-**Flat by default.** Depth is structural and comes from **borders and tonal surface layering**, not ambient shadow. A card is a card because of its border and its `surface` fill, not because it floats. Shadows appear only when an element is genuinely _above_ the plane as a response to state — a menu, a dialog, a popover — never at rest, never on a card or a table.
+### Shadow scale
 
-### Shadow Vocabulary
+- **xs** `0 1px 2px oklch(0.21 0.015 285 / 0.05)` — resting buttons, inputs on focus.
+- **sm** `0 1px 3px oklch(0.21 0.015 285 / 0.06), 0 1px 2px oklch(0.21 0.015 285 / 0.04)` — **cards at rest.** The default premium lift.
+- **md** `0 4px 12px oklch(0.21 0.015 285 / 0.08)` — card hover, popovers, dropdowns.
+- **lg** `0 12px 32px oklch(0.21 0.015 285 / 0.12)` — modals, over a `oklch(0.21 0.015 285 / 0.4)` scrim.
 
-- **Raised** (`0 1px 2px oklch(0 0 0 / 0.05)`): the single resting elevation permitted, and only on interactive controls that must read as pressable (primary buttons). Optional; borders alone are also correct.
-- **Overlay** (`0 8px 24px oklch(0 0 0 / 0.12)`): dropdowns, popovers, command palette. The element has left the plane.
-- **Dialog** (`0 16px 48px oklch(0 0 0 / 0.18)`): modals over a `oklch(0 0 0 / 0.4)` scrim.
+Dark mode conveys the same hierarchy through **lighter surfaces + subtle violet-tinted borders**, not stronger shadows (shadows read poorly on dark).
 
-Dark mode conveys the same hierarchy through **lighter surfaces**, not stronger shadows (shadows read poorly on dark); a raised element gets a brighter fill and a `oklch(1 0 0 / 0.1)` border.
+### Named rules
 
-### Named Rules
+**The Soft-Lift Rule.** Cards rest on `sm` and lift to `md` on hover — a ~3px travel, 160ms. This gentle response is the system's core premium tell. Never a hard drop shadow, never a colored glow.
 
-**The Flat-By-Default Rule.** Surfaces are flat at rest. If you are adding a shadow to a card, table, or panel, you are wrong — reach for a border or a `surface` step instead. Shadow is exclusively the language of "temporarily above the page" (menus, dialogs).
-
-**The Z-Index Ladder.** Semantic scale only, never arbitrary values: base → dropdown (10) → sticky header (20) → scrim (30) → dialog (40) → toast (50) → tooltip (60).
+**The Z-Index Ladder.** Semantic only: base → dropdown 10 → sticky nav 20 → scrim 30 → modal 40 → toast 50 → tooltip 60.
 
 ## 5. Components
 
-Every interactive component ships all seven states: **default, hover, focus-visible, active, disabled, loading, error**. Half a component is a bug. Affordances are consistent across every screen — the same button shape, the same field vocabulary, the same icon family, everywhere.
+Every interactive component ships **default, hover, focus-visible, active, disabled, loading, error**. Half a component is a bug. Vocabulary is identical across every screen.
 
 ### Buttons
 
-- **Shape:** gently rounded (`0.5rem` / 8px), height 2.25rem (36px), label type (500).
-- **Primary:** Ink fill, canvas-colored text. The one strong action per view (Continue, Distribute, Confirm). Hover darkens ~5%; `active` nudges down 1px; focus-visible shows a 2px info ring with offset.
-- **Secondary:** Surface-2 fill, ink text. Neutral secondary actions (Back, Cancel).
-- **Ghost:** transparent, ink text, hover fills Surface-2. Toolbar and low-emphasis actions.
-- **Destructive:** destructive-surface fill, destructive text (not a solid red block — reserved emphasis). Only for irreversible/removing actions.
-- **Loading:** label is replaced or preceded by a spinner; width holds; button disables. Never a layout shift.
-- **The primary action is never a semantic color.** Distribute is Ink, not green — green means _paid_, and a button is not yet a payment.
+- **Shape:** 10px radius, 38px height, label type (500), `xs` shadow.
+- **Primary:** violet fill, white text, `sm` shadow; hover → `primary-hover` + `md` lift; active nudges 1px; focus-visible → 2px violet ring, 2px offset. The one strong action per view.
+- **Secondary:** white fill, ink text, hairline border; hover fills `surface`. Neutral actions (Back, Cancel).
+- **Ghost:** transparent, ink text, hover fills `primary-surface`. Toolbar / low-emphasis.
+- **Destructive:** `destructive-surface` fill, destructive text — reserved emphasis, not a solid red block. Irreversible/removing only.
+- **Loading:** spinner replaces or precedes the label, width held, disabled. No layout shift.
+- **The primary action is never a semantic color.** Distribute is violet.
 
-### Status badges (signature)
+### Cards
 
-The vocabulary that makes distribution state readable at a glance. Small, `label` type, `sm` radius, **surface-tint fill + solid text + a leading icon**:
+- **Corner** 14px · **fill** white · **shadow** `sm` at rest, `md` on hover (`Soft-Lift`) · **padding** 24px.
+- Border optional and hairline; on lavender sections, shadow alone separates the card. **Never nest a card in a card.**
 
-- `Draft` — neutral Surface-2 / muted ink, dot icon.
-- `Scheduled` / `Pending` / `Submitted` — info surface / info, clock icon.
-- `Completed` / `Paid` — success surface / success, check icon.
-- `Partial` — warning surface / warning, alert icon, with a count ("Partial · 4 failed").
-- `Failed` — destructive surface / destructive, cross icon.
+### Dashboard cards (stat / metric)
 
-### Cards / Containers
+- White card, `sm` shadow, 20–24px pad. A **label** (muted, 13px) above a **value** (mono, tabular, 28–32px). A metric that is a payment total is mono; a count is mono. Optional delta uses a semantic colour + icon, never colour alone.
+- Grouped counters render as **one unified strip** with hairline dividers rather than floating boxes — calmer, more enterprise.
 
-- **Corner:** 0.625rem (10px).
-- **Background:** canvas; **border** (hairline) provides definition. `surface` fill only when recessed inside another canvas region.
-- **Shadow:** none (see Flat-By-Default). **Never nest a card in a card.**
-- **Padding:** 1.25rem (20px) default; 1rem for dense contexts.
+### Inputs
 
-### Inputs / Fields
+- White fill, hairline border, 10px radius, 38px height. Mono for address/amount fields, sans for names.
+- **Focus:** border → violet + 2px violet ring (no glow). **Error:** border/ring → destructive, message _below_ in words, never a bare outline. **Disabled:** `surface` fill, muted text.
+- Validation inline and specific ("Not a valid address" on the row), never a summary toast.
 
-- **Style:** canvas fill, hairline border, 8px radius, 36px height, mono font for address/amount fields and sans for name fields.
-- **Focus:** border shifts to info + a 2px info ring (no glow). Calm, precise.
-- **Error:** border and ring shift to destructive; an icon + message sit _below_ the field, in words — never a bare red outline. The message says what to fix.
-- **Disabled:** Surface-2 fill, muted text, `not-allowed` cursor.
-- **Validation is inline and specific** ("Not a valid address" on the row), never a summary toast.
+### Tables (the recipient ledger — signature surface)
 
-### Tables (signature — the recipient ledger)
-
-The most important component in the product; distributions run to thousands of rows.
-
-- **Density:** 10px vertical cell padding; mono, tabular figures for address/amount/hash columns; sans for labels.
-- **Header:** `surface` fill, muted-ink label type, sticky on scroll.
-- **Row:** hairline bottom border only (no full grid, no zebra by default — zebra is noise at scale). Hover fills Surface-2.
+- **Density:** 10–12px cell padding; mono tabular for address/amount/hash, sans for labels.
+- **Header:** `surface` (faint lavender) fill, muted-ink labels, sticky on scroll.
+- **Row:** hairline bottom border, hover fills `surface`; the whole row is a link where it opens a detail. No zebra — noise at scale.
 - **Status column:** a status badge, right-aligned with the amount.
-- **Loading:** skeleton rows in the table's own shape, not a centered spinner.
-- **Empty:** teaches ("Import a CSV to add recipients") with the primary action, never "No data."
-- **Scale:** server-side pagination, sortable headers, a filter for "failures only." Virtualize beyond ~200 rows.
+- **Loading:** skeleton rows in the table's shape. **Empty:** teaches, never "No data." **Scale:** server-side pagination, sortable heads, "failures only" filter, virtualize beyond ~200 rows; below `md`, collapse to stacked rows.
+
+### Modals
+
+- `lg` shadow over a scrim; 18px radius; title / body / actions bottom-right.
+- **Reserved for the genuinely dismissible** (network switch, discard draft, help). Review and execution are **full screens, not modals** — a money decision must not feel dismissible.
+
+### Toasts
+
+- Bottom-right, `md` shadow, 10px radius, auto-dismiss ~4s, stack max 3, dismissible, `role="status"`.
+- **Only for the reversible and trivial** — "Copied", "Draft saved", "CSV exported". A financial outcome is **never** a toast; it is designed inline (`Never-Toast-The-Money`). Success toast carries a check; error a cross — colour never alone.
+
+### Empty states
+
+- Centered in a lavender-tinted, hairline-bordered panel: a soft-violet icon in a white rounded tile, a one-line title, one sentence that teaches, one primary action. Purposeful, never "nothing here." First-run empty states point at the first action (import a CSV).
 
 ### Navigation
 
-- **Header:** canvas with a hairline bottom border, 56px tall. Wordmark left, wallet/network control right.
-- **Wallet control states:** `Loading` (skeleton) → `Connect Wallet` (primary) → `Check your wallet…` (disabled, spinner) → `0x1234…abcd · Disconnect` (mono address chip + ghost button).
-- **Network indicator:** silent when on Monad Mainnet; a full-width warning banner (warning role) when wrong — persistent and blocking, because a wrong-network action with real funds must be hard to do.
-
-### Modals / Dialogs
-
-- Dialog shadow over a scrim; `md`-radius; title (Title type), body, actions bottom-right.
-- **Reserved for the genuinely dismissible** (network switch, discard draft, CSV help). The review and execution steps are **full screens, not modals** — a money decision must not feel dismissible.
+- **Sidebar** (wide): 240px, `lavender` fill, hairline right border. Items are label type; the current item gets `primary-surface` fill + violet text + a 2px violet left indicator. Wordmark top, wallet/account bottom.
+- **Top bar** (mobile / marketing): white, hairline bottom border, 56px. Wordmark left, wallet control right.
+- **Network indicator:** silent on the supported chain; a full-width **warning** banner (amber, not red — a recoverable mistake) when wrong, one click to switch.
+- **Command palette (⌘K):** expected at this tier — jump to a distribution, start a new one.
 
 ### Icons
 
-- **Lucide** (already the dependency), **1.5px stroke, 16–20px**, matched to `label`/`body` optical size. One family, no mixing. Icons reinforce state (they never replace the text label), align to the 4px grid, and inherit the semantic color of their context.
+- **Lucide**, 1.5px stroke, 16–20px, matched to label/body optical size. One family, no mixing. Icons reinforce state (never replace the text label), align to the 4px grid, and inherit their context's semantic colour.
+
+### Illustration
+
+- **Geometric, line-first, monochrome-violet.** The recurring motif is _distribution_: one node branching to many — thin violet strokes on white, occasional `primary-surface` fills, no 3D, no gradients, no crypto coins or mascots. Spot illustrations for empty states and the marketing hero; everywhere else, real product surfaces (a distribution table) beat decoration. Restraint is the style: an illustration should look like a diagram an engineer would draw, refined.
 
 ## 6. Do's and Don'ts
 
-### Do:
+### Do
 
-- **Do** keep the interface monochrome and let the one green or red thing on the screen carry the weight. Calm-at-rest is what makes signal loud.
-- **Do** set every address, amount, hash, and token quantity in **Geist Mono with tabular figures** (The Monospace Money Rule).
-- **Do** pair every state color with an icon and a word (The Never-Color-Alone Rule) — the meaning must survive a grayscale screenshot.
-- **Do** convey depth with borders and `surface` layering; reserve shadows for menus and dialogs only (The Flat-By-Default Rule).
-- **Do** label irreversible actions in plain words ("Distributing is irreversible — tokens sent to a wrong address cannot be recovered") and give them full-screen weight, not a modal.
-- **Do** distinguish `submitted` from `confirmed` visually during execution — a mining transaction must never read as done or as failed.
-- **Do** verify contrast: body text ≥4.5:1, muted ink is the floor, focus rings and semantic solids ≥4.5:1 on their surface.
-- **Do** ship all seven component states, skeletons for loading, and empty states that teach.
-- **Do** keep motion to 150–220ms ease-out state transitions, and honor `prefers-reduced-motion`.
+- **Do** keep white and lavender dominant and let a single violet carry brand + interaction — its rarity is the premium signal.
+- **Do** reserve green / amber / red for payment meaning, always paired with an icon and a word.
+- **Do** set every address, amount, and hash in Geist Mono, tabular (`Monospace Money`).
+- **Do** lift cards softly on hover (`sm`→`md`, ~3px, 160ms) — the system's core premium tell.
+- **Do** give irreversible actions full-screen weight, spacious layout, and plain-word warnings.
+- **Do** distinguish `submitted` from `confirmed` during execution — a mining tx must never read as done.
+- **Do** verify contrast: body ≥4.5:1, and check muted text on **lavender**, not just white.
+- **Do** ship all seven component states, skeletons for loading, and teaching empty states.
 
-### Don't:
+### Don't
 
-- **Don't** use neon gradients, glassmorphism, or the purple crypto sheen — this includes removing the scaffold's leftover `sidebar-primary` purple. These are the named anti-references; Distro reads like Stripe, Linear, Mercury, and Vercel, never a token-launch site.
-- **Don't** color the primary action a semantic hue. **Distribute is Ink, not green** — green means _paid_, and a button is not a payment.
-- **Don't** let muted gray text go lighter than the muted-ink floor for anything a user must read. Light gray "for elegance" is the top readability failure.
-- **Don't** use tiny uppercase tracked eyebrows or `01 / 02 / 03` section numbers. Hierarchy is size and weight (The No-Eyebrow Rule).
-- **Don't** put shadows on cards, tables, or panels; **don't** nest a card inside a card.
-- **Don't** use `border-left`/`border-right` colored stripes on cards, rows, or alerts. Use full borders, surface tints, or a leading icon.
-- **Don't** reach for a modal as the first thought — exhaust inline and full-screen alternatives; money moments are screens.
-- **Don't** animate for decoration, run page-load choreography, or use bounce/elastic easing.
-- **Don't** fluidly scale headings or financial figures with the viewport — fixed rem; a resizing payroll total reads as unstable.
-- **Don't** invent affordances for standard tasks (custom scrollbars, non-standard form controls). Earned familiarity is the bar.
+- **Don't** let the violet become neon, gradient, or glassmorphic — that's the crypto tell this brand explicitly rejects. One deep, restrained violet.
+- **Don't** color a primary action a semantic hue. **Distribute is violet, not green.**
+- **Don't** use more than one accent, or tint neutrals toward warmth — neutrals lean faintly cool toward the brand or stay at chroma 0.
+- **Don't** put a financial outcome in a toast; design it inline.
+- **Don't** use hard/black drop shadows or colored glows; shadows are soft, low-opacity, faintly violet.
+- **Don't** use uppercase tracked eyebrows or `01/02/03` scaffolding.
+- **Don't** nest cards, zebra-stripe tables, or reach for a modal before exhausting inline and full-screen.
+- **Don't** fluidly scale headings or money figures with the viewport.
+- **Don't** animate for decoration, choreograph page loads, or use bounce/elastic easing.
+
+---
+
+## Migration note (not this pass)
+
+This supersedes the previous monochrome DESIGN.md. The shipped app — landing, dashboard, detail, create flow, and ~15 components — is themed against the old system and does **not** yet reflect this. Re-theming is a separate, deliberate pass: rewire `globals.css` tokens (introduce `--primary` violet, `--lavender`, the shadow scale; retire the monochrome primary), then sweep components. Until then, treat this document as the target, and PRODUCT.md's anti-reference as "no _neon crypto_ purple" — which this restrained enterprise violet honours.
