@@ -1,0 +1,19 @@
+{
+  "network": "monad-mainnet",
+  "chainId": 143,
+  "contracts": {
+    "Multisend": {
+      "address": "0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538",
+      "deploymentTx": "0x2a513a20d544213a3538172cdac974954497b184a9cf8d7908d449db68803bdc",
+      "blockNumber": 88344367,
+      "gasUsed": 381795,
+      "effectiveGasPrice": "102000000000",
+      "deployer": "0xB3F2C4cAABC5A7320CFF18B208882Ad1D034431F",
+      "deployedAt": "2026-07-17",
+      "bytecodeVerified": true,
+      "audited": false,
+      "wiredIntoApp": false,
+      "notes": "UNAUDITED. Deployed at the user's explicit instruction after the audit risk was stated. Deploying is harmless (the contract is ownerless, stateless, and holds nothing); risk begins only when real tokens are approved to it. Deliberately NOT in web/src/config/contracts.ts — do not wire it in until an external audit and a proven end-to-end execution path exist. Same address as testnet: identical deployer at nonce 0 yields the same CREATE address on both chains."
+    }
+  }
+}

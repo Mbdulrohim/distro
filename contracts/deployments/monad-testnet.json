@@ -1,0 +1,16 @@
+{
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "contracts": {
+    "Multisend": {
+      "address": "0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538",
+      "deploymentTx": "0xc1f96d719be02f767146c3271b9b30c24187093a60019b32e9235c427f44dc15",
+      "blockNumber": 45693491,
+      "gasUsed": 381795,
+      "deployer": "0xB3F2C4cAABC5A7320CFF18B208882Ad1D034431F",
+      "deployedAt": "2026-07-17",
+      "bytecodeVerified": true,
+      "notes": "Deployed via the monskills agent wallet (encrypted keystore). No Safe multisig: Multisend has no owner, admin, or privileged role, so the deployer holds no power over it — who broadcast it only determines the address. The escrow DistributionFactory DOES have an owner and must use a Safe."
+    }
+  }
+}
