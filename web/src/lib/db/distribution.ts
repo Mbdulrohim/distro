@@ -16,13 +16,21 @@ export interface DistributionDetail {
   tokenAddress: string;
   tokenSymbol: string;
   tokenDecimals: number;
-  multisendAddress: string;
+  /** Null for a `scheduled` distribution — it never talks to Multisend. */
+  multisendAddress: string | null;
   totalAmount: string;
   recipientCount: number;
   status: string;
   createdAt: string;
   submittedAt: string | null;
   completedAt: string | null;
+  kind: "immediate" | "scheduled";
+  /** The deployed `Distribution` clone's address, once `createDistribution`
+   * has confirmed. Null before that, and always null for `immediate`. */
+  escrowAddress: string | null;
+  /** Unix seconds, or null for "no restriction". Only meaningful when `kind`
+   * is "scheduled". */
+  executeAfter: number | null;
 }
 
 export interface RecipientRow {
@@ -55,7 +63,7 @@ export async function getDistribution(
   const { data, error } = await supabase
     .from("distributions")
     .select(
-      "id, name, chain_id, token_address, token_symbol, token_decimals, multisend_address, total_amount, recipient_count, status, created_at, submitted_at, completed_at",
+      "id, name, chain_id, token_address, token_symbol, token_decimals, multisend_address, total_amount, recipient_count, status, created_at, submitted_at, completed_at, kind, escrow_address, execute_after",
     )
     .eq("id", id)
     .eq("user_id", userId)
@@ -78,6 +86,11 @@ export async function getDistribution(
     createdAt: data.created_at,
     submittedAt: data.submitted_at,
     completedAt: data.completed_at,
+    kind: data.kind,
+    escrowAddress: data.escrow_address,
+    executeAfter: data.execute_after
+      ? Math.floor(new Date(data.execute_after).getTime() / 1000)
+      : null,
   };
 }
 

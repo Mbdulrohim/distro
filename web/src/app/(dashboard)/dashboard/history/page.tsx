@@ -5,47 +5,51 @@ import { ArrowLeft, ChevronRight, ChevronLeft, Inbox } from "lucide-react";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
-import { getHistory, HISTORY_STATUSES, type HistoryStatus } from "@/lib/db/dashboard";
+import { getHistory, HISTORY_GROUPS, type HistoryGroup } from "@/lib/db/dashboard";
 import { formatAmount } from "@/lib/recipients/format";
 import { StatusBadge } from "@/components/distributions/status-badge";
 
 const PAGE_SIZE = 20;
-const STATUS_LABELS: Record<HistoryStatus, string> = {
-  draft: "Draft",
-  submitted: "In flight",
+const GROUP_LABELS: Record<HistoryGroup, string> = {
+  active: "Active",
+  scheduled: "Scheduled",
   completed: "Completed",
-  partially_completed: "Partial",
   failed: "Failed",
 };
-const FILTERS: { value: HistoryStatus | "all"; label: string }[] = [
+const FILTERS: { value: HistoryGroup | "all"; label: string }[] = [
   { value: "all", label: "All" },
-  ...HISTORY_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+  ...HISTORY_GROUPS.map((g) => ({ value: g, label: GROUP_LABELS[g] })),
 ];
 
 /**
  * Full distribution history — the audit trail. Filters and page number live
  * in the URL (not client state), so a reload or a shared link reproduces the
  * exact same view, and a failed fetch never loses the user's filter choice.
+ *
+ * Filtered by group (Active / Scheduled / Completed / Failed), not raw
+ * status — a distribution's lifecycle spans more statuses than a creator
+ * should have to know about, and the two kinds (immediate/scheduled) don't
+ * even share a vocabulary for "in progress" (see lib/db/dashboard.ts).
  */
 export default async function HistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{ group?: string; page?: string }>;
 }) {
   const cookieStore = await cookies();
   const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
   if (!session) redirect("/");
 
   const userId = await findUserId(session.address);
-  const { status: rawStatus, page: rawPage } = await searchParams;
-  const status = FILTERS.some((f) => f.value === rawStatus)
-    ? (rawStatus as HistoryStatus | "all")
+  const { group: rawGroup, page: rawPage } = await searchParams;
+  const group = FILTERS.some((f) => f.value === rawGroup)
+    ? (rawGroup as HistoryGroup | "all")
     : "all";
   const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
 
   const { rows, total } = userId
     ? await getHistory(userId, {
-        status: status === "all" ? undefined : status,
+        group: group === "all" ? undefined : group,
         page,
         pageSize: PAGE_SIZE,
       })
@@ -74,9 +78,9 @@ export default async function HistoryPage({
         {FILTERS.map((f) => (
           <Link
             key={f.value}
-            href={f.value === "all" ? "/dashboard/history" : `/dashboard/history?status=${f.value}`}
+            href={f.value === "all" ? "/dashboard/history" : `/dashboard/history?group=${f.value}`}
             className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-              status === f.value
+              group === f.value
                 ? "border-primary/30 bg-light-purple text-primary-text"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
@@ -87,7 +91,7 @@ export default async function HistoryPage({
       </nav>
 
       {rows.length === 0 ? (
-        <EmptyState hasFilter={status !== "all"} />
+        <EmptyState hasFilter={group !== "all"} />
       ) : (
         <>
           <div className="overflow-hidden rounded-xl border border-border">
@@ -148,7 +152,7 @@ export default async function HistoryPage({
           {totalPages > 1 ? (
             <div className="mt-4 flex items-center justify-between text-sm">
               <Link
-                href={pageHref(status, page - 1)}
+                href={pageHref(group, page - 1)}
                 aria-disabled={page <= 1}
                 className={`inline-flex items-center gap-1 ${
                   page <= 1
@@ -163,7 +167,7 @@ export default async function HistoryPage({
                 Page {page} of {totalPages}
               </span>
               <Link
-                href={pageHref(status, page + 1)}
+                href={pageHref(group, page + 1)}
                 aria-disabled={page >= totalPages}
                 className={`inline-flex items-center gap-1 ${
                   page >= totalPages
@@ -182,9 +186,9 @@ export default async function HistoryPage({
   );
 }
 
-function pageHref(status: HistoryStatus | "all", page: number): string {
+function pageHref(group: HistoryGroup | "all", page: number): string {
   const params = new URLSearchParams();
-  if (status !== "all") params.set("status", status);
+  if (group !== "all") params.set("group", group);
   if (page > 1) params.set("page", String(page));
   const qs = params.toString();
   return qs ? `/dashboard/history?${qs}` : "/dashboard/history";

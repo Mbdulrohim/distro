@@ -196,3 +196,130 @@ export async function predictScheduledAddress(
     args: [account, salt],
   });
 }
+
+/**
+ * Running an already-scheduled distribution: `executeChunk` per chunk not
+ * yet executed, once `executeAfter` has arrived. Permissionless on-chain —
+ * this function itself doesn't check who's calling, that's the contract's
+ * job — but today it's only reachable from the creator's own detail page
+ * (see docs on ScheduledExecutePanel's sibling component). True third-party
+ * execution needs a public, unauthenticated route, which doesn't exist yet;
+ * this closes the "does it run at all" gap first.
+ */
+
+export interface ExecuteScheduledChunk {
+  index: number;
+  payload: `0x${string}`;
+}
+
+/** One recipient's on-chain outcome for a chunk, decoded from the receipt —
+ * same shape `/api/distributions/[id]/results` already expects. */
+export interface ScheduledPaymentResult {
+  recipient: Address;
+  amount: bigint;
+  /** Position within the chunk — maps to `recipients.index_in_batch`. */
+  index: number;
+  status: "paid" | "failed";
+}
+
+export interface ScheduledChunkResult {
+  chunkIndex: number;
+  txHash: Hash;
+  blockNumber: bigint;
+  gasUsed: bigint;
+  payments: ScheduledPaymentResult[];
+  paidCount: number;
+  failedCount: number;
+}
+
+export type ExecuteScheduledEvent =
+  | { type: "chunk:skipped-already-executed"; chunkIndex: number }
+  | { type: "chunk:too-early"; executeAfter: number }
+  | { type: "chunk:signing"; chunkIndex: number; total: number }
+  | { type: "chunk:submitted"; chunkIndex: number; total: number; txHash: Hash }
+  | { type: "chunk:confirmed"; result: ScheduledChunkResult }
+  | { type: "done"; results: ScheduledChunkResult[] };
+
+/**
+ * Execute every not-yet-executed chunk of a funded, scheduled distribution.
+ *
+ * Reads `chunkExecuted` on-chain before attempting each one, so calling this
+ * again after a partial run (or after someone else already ran a chunk)
+ * safely resumes rather than reverting on `ChunkAlreadyExecuted`.
+ */
+export async function* executeScheduledDistribution(args: {
+  config: Config;
+  chainId: number;
+  distribution: Address;
+  chunks: ExecuteScheduledChunk[];
+}): AsyncGenerator<ExecuteScheduledEvent, void, undefined> {
+  const { config, chainId, distribution, chunks } = args;
+  const results: ScheduledChunkResult[] = [];
+
+  const executeAfter = await readContract(config, {
+    chainId,
+    address: distribution,
+    abi: distributionAbi,
+    functionName: "executeAfter",
+  });
+  if (Date.now() / 1000 < Number(executeAfter)) {
+    yield { type: "chunk:too-early", executeAfter: Number(executeAfter) };
+    return;
+  }
+
+  for (const chunk of chunks) {
+    const alreadyExecuted = await readContract(config, {
+      chainId,
+      address: distribution,
+      abi: distributionAbi,
+      functionName: "chunkExecuted",
+      args: [BigInt(chunk.index)],
+    });
+    if (alreadyExecuted) {
+      yield { type: "chunk:skipped-already-executed", chunkIndex: chunk.index };
+      continue;
+    }
+
+    yield { type: "chunk:signing", chunkIndex: chunk.index, total: chunks.length };
+    const txHash = await writeContract(config, {
+      chainId,
+      address: distribution,
+      abi: distributionAbi,
+      functionName: "executeChunk",
+      args: [BigInt(chunk.index), chunk.payload],
+    });
+    yield { type: "chunk:submitted", chunkIndex: chunk.index, total: chunks.length, txHash };
+
+    const receipt = await waitForTransactionReceipt(config, { chainId, hash: txHash });
+
+    // The receipt is the source of truth — decode both outcomes rather than
+    // assume success, exactly as the immediate (Multisend) path does. One
+    // blocklisted recipient must not read as the whole chunk failing.
+    const logs = parseEventLogs({
+      abi: distributionAbi,
+      logs: receipt.logs,
+      eventName: ["Paid", "PaymentFailed"],
+    });
+
+    const payments: ScheduledPaymentResult[] = logs.map((log) => ({
+      recipient: log.args.recipient as Address,
+      amount: log.args.amount as bigint,
+      index: Number(log.args.position as bigint),
+      status: log.eventName === "Paid" ? "paid" : "failed",
+    }));
+
+    const result: ScheduledChunkResult = {
+      chunkIndex: chunk.index,
+      txHash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      payments,
+      paidCount: payments.filter((p) => p.status === "paid").length,
+      failedCount: payments.filter((p) => p.status === "failed").length,
+    };
+    results.push(result);
+    yield { type: "chunk:confirmed", result };
+  }
+
+  yield { type: "done", results };
+}

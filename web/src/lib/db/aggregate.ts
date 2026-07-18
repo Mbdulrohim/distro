@@ -11,6 +11,7 @@ export interface DistributionRow {
   token_decimals: number;
   /** numeric(78,0) arrives from Postgres as a string. */
   total_amount: string;
+  kind?: "immediate" | "scheduled";
 }
 
 export interface TokenTotal {
@@ -26,6 +27,11 @@ export interface DashboardStats {
   completed: number;
   failed: number;
   drafts: number;
+  /** Every row, of either kind — the headline count. */
+  totalDistributions: number;
+  /** `kind: "scheduled"` rows not yet executing/finished — committed and/or
+   * funded, waiting for their time. */
+  scheduled: number;
 }
 
 /** Statuses whose money actually moved. */
@@ -49,6 +55,12 @@ export function aggregateStats(rows: DistributionRow[]): DashboardStats {
   }
 
   const count = (s: string) => rows.filter((r) => r.status === s).length;
+  // "scheduled" kind is only meaningful for Tier-2 rows; default (undefined,
+  // pre-migration rows or a bare test fixture) reads as "immediate", never
+  // as scheduled.
+  const scheduledCount = rows.filter(
+    (r) => r.kind === "scheduled" && (r.status === "ready" || r.status === "funded"),
+  ).length;
 
   return {
     // Grouped by token, never summed across tokens: base units are relative to
@@ -59,11 +71,15 @@ export function aggregateStats(rows: DistributionRow[]): DashboardStats {
       tokenDecimals: v.decimals,
       total: v.total.toString(),
     })),
-    inFlight: count("submitted"),
+    // "submitted" (immediate, mid-transaction) and "executing" (scheduled,
+    // at least one chunk run) are both genuinely in-flight right now.
+    inFlight: count("submitted") + count("executing"),
     completed: count("completed"),
     // Partial runs have undelivered payments needing action — they belong with
     // failures, not quietly filed as completed.
     failed: count("failed") + count("partially_completed"),
     drafts: count("draft"),
+    totalDistributions: rows.length,
+    scheduled: scheduledCount,
   };
 }

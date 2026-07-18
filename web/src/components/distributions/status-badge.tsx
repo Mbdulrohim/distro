@@ -25,6 +25,29 @@ const STATUS: Record<string, { label: string; icon: typeof Check; className: str
     // Pending — outcome genuinely unknown until the receipt lands.
     className: "border-info/30 bg-info-surface text-info",
   },
+  // Tier-2 (escrow) states — committed but not yet funded, or funded and
+  // waiting for its scheduled time. Distinct from "draft": the recipient
+  // list is already committed on-chain by this point.
+  ready: {
+    label: "Ready to fund",
+    icon: Circle,
+    className: "border-border bg-surface-2 text-muted-foreground",
+  },
+  funded: {
+    label: "Scheduled",
+    icon: Clock,
+    className: "border-info/30 bg-info-surface text-info",
+  },
+  executing: {
+    label: "Executing",
+    icon: Clock,
+    className: "border-info/30 bg-info-surface text-info",
+  },
+  cancelled: {
+    label: "Cancelled",
+    icon: X,
+    className: "border-border bg-surface-2 text-muted-foreground",
+  },
   completed: {
     label: "Completed",
     icon: Check,

@@ -9,10 +9,12 @@ import { getDistribution, getRecipients, getSummary, getTransactions } from "@/l
 import { StatusBadge } from "@/components/distributions/status-badge";
 import { RecipientResults } from "@/components/distributions/recipient-results";
 import { RetryPanel } from "@/components/distributions/retry-panel";
+import { ExecuteScheduledChunksPanel } from "@/components/distributions/execute-scheduled-chunks-panel";
 import { isAddress } from "viem";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
 import { truncateAddress } from "@/lib/format";
 import { supportedChains } from "@/config/chains";
+import { encodePayload } from "@/lib/recipients/encode";
 
 /**
  * Distribution detail — the record of what happened, and the remedy for what
@@ -84,6 +86,41 @@ export default async function DistributionDetailPage({
           value={formatAmountWithSymbol(summary.totalPaid, dist.tokenDecimals, dist.tokenSymbol)}
         />
       </dl>
+
+      {/* Scheduled distribution: escrowed and committed, but execution itself
+          is a separate, later action — permissionless on the contract, only
+          reachable from here today (see the module doc on
+          ExecuteScheduledChunksPanel's sibling engine for the honest limit). */}
+      {dist.kind === "scheduled" &&
+      dist.escrowAddress &&
+      ["ready", "funded", "executing"].includes(dist.status) ? (
+        <section className="mb-8">
+          <h2 className="mb-2 text-sm font-medium">Execution</h2>
+          <ExecuteScheduledChunksPanel
+            distributionId={dist.id}
+            escrowAddress={dist.escrowAddress as `0x${string}`}
+            executeAfter={dist.executeAfter}
+            chunks={Object.entries(
+              recipients.reduce<Record<number, typeof recipients>>((byChunk, r) => {
+                (byChunk[r.batchIndex] ??= []).push(r);
+                return byChunk;
+              }, {}),
+            )
+              .sort(([a], [b]) => Number(a) - Number(b))
+              .map(([chunkIndex, rows]) => ({
+                index: Number(chunkIndex),
+                payload: encodePayload(
+                  [...rows]
+                    .sort((a, b) => a.indexInBatch - b.indexInBatch)
+                    .map((r) => ({
+                      address: r.address as `0x${string}`,
+                      amount: BigInt(r.amount),
+                    })),
+                ),
+              }))}
+          />
+        </section>
+      ) : null}
 
       {/* Partial failure leads with the remedy, not the alarm */}
       {failedCount > 0 ? (

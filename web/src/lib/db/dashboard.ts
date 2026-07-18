@@ -23,6 +23,7 @@ export interface RecentDistribution {
   totalAmount: string;
   recipientCount: number;
   status: string;
+  kind: "immediate" | "scheduled";
   createdAt: string;
 }
 
@@ -32,7 +33,7 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
 
   const { data, error } = await supabase
     .from("distributions")
-    .select("status, token_symbol, token_decimals, total_amount")
+    .select("status, token_symbol, token_decimals, total_amount, kind")
     .eq("user_id", userId)
     .is("deleted_at", null);
 
@@ -51,7 +52,7 @@ export async function getRecentDistributions(
   const { data, error } = await supabase
     .from("distributions")
     .select(
-      "id, name, token_symbol, token_decimals, total_amount, recipient_count, status, created_at",
+      "id, name, token_symbol, token_decimals, total_amount, recipient_count, status, kind, created_at",
     )
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -68,18 +69,32 @@ export async function getRecentDistributions(
     totalAmount: r.total_amount,
     recipientCount: r.recipient_count,
     status: r.status,
+    kind: r.kind,
     createdAt: r.created_at,
   }));
 }
 
-export const HISTORY_STATUSES = [
-  "draft",
-  "submitted",
-  "completed",
-  "partially_completed",
-  "failed",
-] as const;
-export type HistoryStatus = (typeof HISTORY_STATUSES)[number];
+/**
+ * History groups. Not raw status values — a distribution's lifecycle spans
+ * more statuses than a user should have to know about (an "immediate" run is
+ * never "ready" or "funded"; a "scheduled" one is never "submitted"), so the
+ * filter is the four buckets that actually mean something to a creator.
+ */
+export const HISTORY_GROUPS = ["active", "scheduled", "completed", "failed"] as const;
+export type HistoryGroup = (typeof HISTORY_GROUPS)[number];
+
+/** Status values behind each group. */
+const GROUP_STATUSES: Record<HistoryGroup, readonly string[]> = {
+  // In progress right now, for either kind — a signed-and-mining Multisend
+  // run, or an escrow with at least one executeChunk already confirmed.
+  active: ["submitted", "executing"],
+  // Committed and/or funded, waiting for its time — not yet started.
+  scheduled: ["draft", "ready", "funded"],
+  completed: ["completed"],
+  // Nothing left to do and it didn't fully succeed: a real failure, a
+  // partial run (money moved, some of it didn't land), or a cancelled escrow.
+  failed: ["failed", "partially_completed", "cancelled"],
+};
 
 export interface HistoryPage {
   rows: RecentDistribution[];
@@ -89,22 +104,22 @@ export interface HistoryPage {
 
 /**
  * The full, filterable distribution log (History page). Same shape as
- * `getRecentDistributions` but paginated and status-filterable — the
+ * `getRecentDistributions` but paginated and group-filterable — the
  * Dashboard's "recent" list is a slice of this, not a separate source.
  */
 export async function getHistory(
   userId: string,
-  opts: { status?: HistoryStatus; page?: number; pageSize?: number } = {},
+  opts: { group?: HistoryGroup; page?: number; pageSize?: number } = {},
 ): Promise<HistoryPage> {
   const supabase = createServiceRoleClient();
-  const { status, page = 1, pageSize = 20 } = opts;
+  const { group, page = 1, pageSize = 20 } = opts;
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
   let query = supabase
     .from("distributions")
     .select(
-      "id, name, token_symbol, token_decimals, total_amount, recipient_count, status, created_at",
+      "id, name, token_symbol, token_decimals, total_amount, recipient_count, status, kind, created_at",
       { count: "exact" },
     )
     .eq("user_id", userId)
@@ -112,7 +127,7 @@ export async function getHistory(
     .order("created_at", { ascending: false })
     .range(from, to);
 
-  if (status) query = query.eq("status", status);
+  if (group) query = query.in("status", GROUP_STATUSES[group]);
 
   const { data, error, count } = await query;
   if (error) throw new Error(`Failed to load distribution history: ${error.message}`);
@@ -127,6 +142,7 @@ export async function getHistory(
       totalAmount: r.total_amount,
       recipientCount: r.recipient_count,
       status: r.status,
+      kind: r.kind,
       createdAt: r.created_at,
     })),
   };

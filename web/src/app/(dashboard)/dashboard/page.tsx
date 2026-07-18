@@ -57,7 +57,9 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-10">
           {/* Counters — one unified strip with hairline dividers, flat by
               default (DESIGN.md), rather than four floating boxes. */}
-          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
+            <Stat label="Total distributions" value={stats!.totalDistributions} />
+            <Stat label="Scheduled" value={stats!.scheduled} />
             <Stat label="In flight" value={stats!.inFlight} />
             <Stat label="Completed" value={stats!.completed} />
             <Stat label="Needs attention" value={stats!.failed} emphasise={stats!.failed > 0} />
@@ -65,7 +67,7 @@ export default async function DashboardPage() {
           </dl>
 
           <section>
-            <SectionHeading>Total distributed</SectionHeading>
+            <SectionHeading>Total volume</SectionHeading>
             {stats!.totalDistributed.length === 0 ? (
               <p className="rounded-xl border border-border bg-surface px-4 py-5 text-sm text-muted-foreground">
                 Nothing has been paid out yet.

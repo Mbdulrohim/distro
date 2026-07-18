@@ -37,7 +37,35 @@ describe("aggregateStats — counters", () => {
       completed: 0,
       failed: 0,
       drafts: 0,
+      totalDistributions: 0,
+      scheduled: 0,
     });
+  });
+});
+
+describe("aggregateStats — Tier-2 (scheduled)", () => {
+  it("counts executing rows as in-flight, alongside submitted", () => {
+    const s = aggregateStats([row("submitted"), { ...row("executing"), kind: "scheduled" }]);
+    expect(s.inFlight).toBe(2);
+  });
+
+  it("counts ready/funded scheduled rows as 'scheduled', not drafts or in-flight", () => {
+    const s = aggregateStats([
+      { ...row("ready"), kind: "scheduled" },
+      { ...row("funded"), kind: "scheduled" },
+      row("draft"), // immediate draft — must not count as scheduled
+    ]);
+    expect(s.scheduled).toBe(2);
+    expect(s.drafts).toBe(1);
+  });
+
+  it("counts every row, of either kind, into totalDistributions", () => {
+    const s = aggregateStats([
+      row("draft"),
+      row("completed"),
+      { ...row("funded"), kind: "scheduled" },
+    ]);
+    expect(s.totalDistributions).toBe(3);
   });
 });
 

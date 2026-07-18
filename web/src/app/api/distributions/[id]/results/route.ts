@@ -71,7 +71,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   // own must 404, not leak its existence.
   const { data: dist } = await supabase
     .from("distributions")
-    .select("id, recipient_count")
+    .select("id, recipient_count, kind")
     .eq("id", id)
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -141,8 +141,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     .eq("distribution_id", id)
     .eq("status", "failed");
 
+  // "submitted" for immediate (Multisend, in-flight for the duration of one
+  // signed transaction); "executing" for scheduled (an escrow that may take
+  // several separate `executeChunk` calls, possibly by different callers,
+  // possibly hours apart) — same in-progress meaning, distinct vocabulary
+  // because the two are genuinely different processes.
+  const inProgressStatus = dist.kind === "scheduled" ? "executing" : "submitted";
   const status =
-    (pending ?? 0) > 0 ? "submitted" : (failed ?? 0) > 0 ? "partially_completed" : "completed";
+    (pending ?? 0) > 0 ? inProgressStatus : (failed ?? 0) > 0 ? "partially_completed" : "completed";
 
   await supabase
     .from("distributions")
