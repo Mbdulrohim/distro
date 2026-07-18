@@ -12,6 +12,9 @@ import {
   FileText,
   ExternalLink,
   X,
+  FolderGit2,
+  BadgeCheck,
+  Eye,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/auth/connect-wallet-button";
@@ -51,12 +54,14 @@ export default async function MarketingPage({
         ) : null}
 
         <Hero />
+        <TrustedBy />
         <Problem />
         <Solution />
+        <ProductPreview />
         <HowItWorks />
-        <Features />
         <Templates />
-        <UseCases />
+        <Features />
+        <LiveTimeline />
         <WhyMonad />
         <Security />
         <Faq />
@@ -400,10 +405,71 @@ function Templates() {
   );
 }
 
-/* ------------------------------------------------------------- Use cases */
-/* White — a palette-cleanser after Templates' visual weight. */
+/* ----------------------------------------------------------- Trusted By */
+/* Flat white, quiet. Replaces a conventional logo-bar "Trusted By" section:
+   Distro has no customer logos to show yet, and inventing them would be
+   exactly the fabricated-trust this product's docs explicitly forbid on a
+   surface that sells a money product. Same slot, same instant-credibility
+   job — but every claim here is a fact a visitor can click and verify
+   themselves, not an assertion. */
 
-function UseCases() {
+function TrustedBy() {
+  const facts = [
+    {
+      icon: BadgeCheck,
+      label: "Deployed & bytecode-verified",
+      value: "0xd9C7…4538",
+      href: "https://monadscan.com/address/0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538",
+    },
+    {
+      icon: FolderGit2,
+      label: "Open source",
+      value: "View the repository",
+      href: "https://github.com/tweetbysobur/distro",
+    },
+    {
+      icon: ShieldCheck,
+      label: "Architecture",
+      value: "Non-custodial by design",
+      href: "#security",
+    },
+  ];
+  return (
+    <section className="bg-background">
+      <div className="mx-auto w-full max-w-5xl px-6 py-16">
+        <RevealGroup className="grid gap-6 sm:grid-cols-3">
+          {facts.map((f) => (
+            <RevealItem key={f.label}>
+              <a
+                href={f.href}
+                target={f.href.startsWith("http") ? "_blank" : undefined}
+                rel={f.href.startsWith("http") ? "noreferrer" : undefined}
+                className="group flex items-center gap-3 rounded-md border border-border bg-background px-5 py-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
+              >
+                <f.icon className="size-5 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="text-xs text-charcoal-muted">{f.label}</p>
+                  <p className="truncate font-mono text-sm font-medium group-hover:text-primary-text">
+                    {f.value}
+                  </p>
+                </div>
+              </a>
+            </RevealItem>
+          ))}
+        </RevealGroup>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------- Product Preview */
+/* Plain white, one floating card — the actual review screen's visual
+   language (irreversibility gate, both-units total), not another decorative
+   mock. This is deliberately a DIFFERENT screen than the Hero's execution
+   table, so the two hero-weight visuals in the page don't repeat each other.
+   The former "Use Cases" pill list folds in here as a closing strip. */
+
+function ProductPreview() {
   const cases = [
     "Monthly payroll",
     "Community rewards",
@@ -418,15 +484,60 @@ function UseCases() {
   ];
   return (
     <section className="bg-background">
-      <div className="mx-auto w-full max-w-5xl px-6 py-24">
+      <div className="mx-auto w-full max-w-4xl px-6 py-28">
         <Reveal>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Built for</h2>
-          <p className="mt-4 max-w-2xl text-charcoal-muted">
-            Anywhere the recipients are known and the payments need to actually arrive — Web3 teams,
-            DAOs, grant programs, NFT projects, and creator communities.
-          </p>
+          <div className="mb-4 flex items-center gap-2 text-sm font-medium text-primary-text">
+            <Eye className="size-4" />
+            Product preview
+          </div>
+          <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+            The review step — the one deliberate pause before anything sends.
+          </h2>
         </Reveal>
-        <RevealGroup className="mt-10 flex flex-wrap gap-3">
+
+        <Reveal delay={0.1} rise={20} className="mt-12">
+          <div
+            className="rounded-xl border border-border bg-background p-1.5"
+            style={{ boxShadow: "var(--shadow-md)" }}
+          >
+            <div className="rounded-lg bg-background p-6 sm:p-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-lg font-semibold">March payroll</p>
+                  <p className="text-sm text-charcoal-muted">Review everything before sending.</p>
+                </div>
+                <span className="rounded-full bg-light-purple px-3 py-1 text-xs font-medium text-primary-text">
+                  Draft
+                </span>
+              </div>
+
+              <dl className="mt-6 grid gap-3 border-t border-border pt-6 text-sm">
+                <div className="flex items-center justify-between">
+                  <dt className="text-charcoal-muted">Recipients</dt>
+                  <dd className="font-mono tabular-nums">240</dd>
+                </div>
+                <div className="flex items-start justify-between">
+                  <dt className="text-charcoal-muted">Total</dt>
+                  <dd className="text-right">
+                    <span className="font-mono tabular-nums">48,300.00 USDC</span>
+                    <span className="block font-mono text-xs text-charcoal-muted">
+                      48,300,000,000 base units
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-6 flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive-surface p-4 text-sm text-destructive">
+                <ShieldCheck className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  Distributing is irreversible. Tokens sent to a wrong address cannot be recovered.
+                </span>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        <RevealGroup className="mt-16 flex flex-wrap gap-3">
           {cases.map((c) => (
             <RevealItem key={c}>
               <span className="inline-block rounded-full border border-border bg-background px-4 py-2.5 text-sm shadow-xs">
@@ -435,6 +546,62 @@ function UseCases() {
             </RevealItem>
           ))}
         </RevealGroup>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------------------------------------------- Live Distribution Timeline */
+/* Plain white, connected by a vertical line — illustrates the "Tracking"
+   pillar mechanically. Explicitly labelled as an example, exactly like the
+   Hero's execution table: this shows how tracking WORKS, it does not claim
+   to be a real live feed of actual product activity. */
+
+function LiveTimeline() {
+  const events = [
+    { t: "14:32:01", label: "Distribution created", state: "done" as const },
+    { t: "14:32:04", label: "Recipients committed onchain", state: "done" as const },
+    { t: "14:32:09", label: "Approved · 48,300 USDC", state: "done" as const },
+    { t: "14:32:14", label: "Batch 1 of 2 confirmed · 120 paid", state: "done" as const },
+    { t: "14:32:19", label: "Batch 2 of 2 confirmed · 116 paid, 4 failed", state: "warn" as const },
+    { t: "—", label: "Retry available for 4 failed payments", state: "pending" as const },
+  ];
+  return (
+    <section className="bg-background">
+      <div className="mx-auto w-full max-w-2xl px-6 py-28">
+        <Reveal>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            Track every payment, in order.
+          </h2>
+          <p className="mt-4 text-charcoal-muted">
+            An illustrative example, not a live feed — this is the shape of every
+            distribution&apos;s timeline. Each step below is a real event type Distro emits onchain.
+          </p>
+        </Reveal>
+
+        <div className="relative mt-14 pl-8">
+          <div aria-hidden className="absolute top-1 bottom-1 left-[0.6875rem] w-px bg-border" />
+          <RevealGroup className="flex flex-col gap-8">
+            {events.map((e) => (
+              <RevealItem key={e.label} className="relative flex items-start gap-4">
+                <span
+                  className={
+                    "absolute -left-8 mt-1 size-3.5 rounded-full border-2 border-background " +
+                    (e.state === "done"
+                      ? "bg-success"
+                      : e.state === "warn"
+                        ? "bg-warning"
+                        : "bg-border")
+                  }
+                />
+                <div>
+                  <p className="font-mono text-xs text-charcoal-muted">{e.t}</p>
+                  <p className="mt-0.5 text-sm font-medium">{e.label}</p>
+                </div>
+              </RevealItem>
+            ))}
+          </RevealGroup>
+        </div>
       </div>
     </section>
   );
@@ -504,7 +671,7 @@ function Security() {
     },
   ];
   return (
-    <section className="bg-light-purple">
+    <section id="security" className="scroll-mt-16 bg-light-purple">
       <div className="mx-auto w-full max-w-5xl px-6 py-28">
         <Reveal>
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Security</h2>
