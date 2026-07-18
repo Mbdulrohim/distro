@@ -51,7 +51,12 @@ export function CreateFlow() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
-  const [templateError, setTemplateError] = useState<string | null>(null);
+  // Two distinct failure modes, kept in separate state: loading the starting
+  // template (details step) and saving a new one (review step) can fail
+  // independently, and conflating them into one variable would let a stale
+  // message from one step bleed into the other's error slot.
+  const [templateLoadError, setTemplateLoadError] = useState<string | null>(null);
+  const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateSaved, setTemplateSaved] = useState(false);
 
@@ -71,7 +76,7 @@ export function CreateFlow() {
       })
       .catch((e: unknown) => {
         if (!cancelled)
-          setTemplateError(e instanceof Error ? e.message : "Failed to load template.");
+          setTemplateLoadError(e instanceof Error ? e.message : "Failed to load template.");
       });
     return () => {
       cancelled = true;
@@ -138,7 +143,7 @@ export function CreateFlow() {
   async function onSaveTemplate() {
     if (!token?.address) return;
     setSavingTemplate(true);
-    setTemplateError(null);
+    setTemplateSaveError(null);
     try {
       const res = await fetch("/api/templates", {
         method: "POST",
@@ -161,7 +166,7 @@ export function CreateFlow() {
       }
       setTemplateSaved(true);
     } catch (e) {
-      setTemplateError(e instanceof Error ? e.message : "Could not save the template.");
+      setTemplateSaveError(e instanceof Error ? e.message : "Could not save the template.");
     } finally {
       setSavingTemplate(false);
     }
@@ -196,9 +201,9 @@ export function CreateFlow() {
               />
             </div>
 
-            {templateError ? (
+            {templateLoadError ? (
               <p className="rounded-md border border-destructive/30 bg-destructive-surface px-3 py-2 text-sm text-destructive">
-                {templateError}
+                {templateLoadError}
               </p>
             ) : null}
 
@@ -307,8 +312,8 @@ export function CreateFlow() {
                       ? "Saving…"
                       : "Save as template"}
                 </Button>
-                {templateError ? (
-                  <span className="text-xs text-destructive">{templateError}</span>
+                {templateSaveError ? (
+                  <span className="text-xs text-destructive">{templateSaveError}</span>
                 ) : null}
               </div>
               <p className="text-xs text-muted-foreground">

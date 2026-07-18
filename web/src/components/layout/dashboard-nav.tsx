@@ -16,6 +16,11 @@ const ITEMS = [
  * not a sidebar — the dashboard has five destinations total, which doesn't
  * earn the extra chrome a sidebar costs on smaller screens.
  */
+// "/dashboard" itself is a prefix of every route here, so its match must
+// exclude the other tabs' subtrees explicitly (detail pages and
+// "/dashboard/new" belong to Distributions, not to any other tab).
+const OTHER_PREFIXES = ITEMS.filter((i) => i.href !== "/dashboard").map((i) => i.href);
+
 export function DashboardNav() {
   const pathname = usePathname();
 
@@ -23,13 +28,9 @@ export function DashboardNav() {
     <nav className="border-b border-border px-6" aria-label="Dashboard">
       <div className="mx-auto flex w-full max-w-5xl gap-1 overflow-x-auto">
         {ITEMS.map((item) => {
-          // "/dashboard" itself is a prefix of every route here, so its match
-          // must exclude the other tabs' subtrees explicitly (detail pages and
-          // "/dashboard/new" belong to Distributions, not to any other tab).
-          const otherPrefixes = ITEMS.filter((i) => i.href !== "/dashboard").map((i) => i.href);
           const active =
             item.href === "/dashboard"
-              ? pathname === "/dashboard" || !otherPrefixes.some((p) => pathname.startsWith(p))
+              ? pathname === "/dashboard" || !OTHER_PREFIXES.some((p) => pathname.startsWith(p))
               : pathname.startsWith(item.href);
           return (
             <Link
