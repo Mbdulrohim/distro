@@ -16,6 +16,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
+import { DistroMark } from "@/components/brand/distro-mark";
 import { ConnectWalletButton } from "@/components/auth/connect-wallet-button";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { HoverCard } from "@/components/ui/card";
@@ -238,7 +239,7 @@ function Problem() {
   ];
   return (
     <section className="bg-light-purple">
-      <div className="mx-auto w-full max-w-4xl px-6 py-24 lg:py-32">
+      <div className="mx-auto w-full max-w-4xl px-6 py-28">
         <Reveal>
           <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             Blockchain made transfers permissionless. It never made distribution efficient.
@@ -305,7 +306,7 @@ function HowItWorks() {
   ];
   return (
     <section className="bg-background">
-      <div className="mx-auto w-full max-w-5xl px-6 py-24">
+      <div className="mx-auto w-full max-w-5xl px-6 py-28">
         <Reveal>
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">How it works</h2>
         </Reveal>
@@ -711,42 +712,101 @@ function FinalCta() {
 
 /* ---------------------------------------------------------------- Footer */
 
+const FOOTER_COLUMNS: {
+  heading: string;
+  links: { label: string; href: string; external?: boolean }[];
+}[] = [
+  {
+    heading: "Product",
+    links: [
+      { label: "Dashboard", href: "/dashboard" },
+      { label: "Security", href: "#security" },
+    ],
+  },
+  {
+    heading: "Developers",
+    links: [
+      { label: "GitHub", href: "https://github.com/tweetbysobur/distro", external: true },
+      {
+        label: "Smart Contracts",
+        href: "https://github.com/tweetbysobur/distro/tree/main/contracts",
+        external: true,
+      },
+      {
+        label: "Contract Address",
+        href: "https://monadscan.com/address/0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538",
+        external: true,
+      },
+    ],
+  },
+  {
+    heading: "Resources",
+    links: [
+      {
+        label: "Documentation",
+        href: "https://github.com/tweetbysobur/distro/tree/main/docs",
+        external: true,
+      },
+      { label: "Monad Explorer", href: "https://monadscan.com", external: true },
+    ],
+  },
+];
+
 function Footer() {
   return (
-    <footer className="bg-background">
-      <div className="mx-auto w-full max-w-5xl px-6 py-14">
-        <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
+    <footer className="border-t border-border bg-background">
+      <div className="mx-auto w-full max-w-5xl px-6 py-16">
+        <div className="grid gap-12 sm:grid-cols-[1.3fr_1fr_1fr_1fr]">
           <div>
-            <p className="font-mono text-sm font-semibold tracking-tight">Distro</p>
-            <p className="mt-1 text-xs text-charcoal-muted">
-              Onchain distribution engine for Monad.
+            <p className="flex items-center gap-2 font-mono text-sm font-semibold tracking-tight">
+              <DistroMark className="size-4 text-primary" />
+              Distro
+            </p>
+            <p className="mt-3 max-w-xs text-sm text-charcoal-muted">
+              Onchain distribution engine for Monad. Not a wallet, exchange, bridge, bank, or
+              custodian.
+            </p>
+            <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-charcoal-muted">
+              <span className="size-1.5 rounded-full bg-success" />
+              Built on Monad Mainnet
             </p>
           </div>
-          <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-charcoal-muted">
-            <Link href="/dashboard" className="hover:text-foreground">
-              Dashboard
-            </Link>
-            <a
-              href="https://github.com/tweetbysobur/distro"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-foreground"
-            >
-              GitHub
-            </a>
-            <a
-              href="https://monadscan.com/address/0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-foreground"
-            >
-              Contract
-            </a>
-          </nav>
+
+          {FOOTER_COLUMNS.map((col) => (
+            <div key={col.heading}>
+              <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                {col.heading}
+              </p>
+              <ul className="mt-4 flex flex-col gap-2.5 text-sm text-charcoal-muted">
+                {col.links.map((link) =>
+                  link.external ? (
+                    <li key={link.label}>
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-foreground"
+                      >
+                        {link.label}
+                      </a>
+                    </li>
+                  ) : (
+                    <li key={link.label}>
+                      <Link href={link.href} className="hover:text-foreground">
+                        {link.label}
+                      </Link>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          ))}
         </div>
-        <p className="mt-8 text-xs text-charcoal-muted">
-          Not a wallet, exchange, bridge, bank, or custodian.
-        </p>
+
+        <div className="mt-12 flex flex-col gap-2 border-t border-border pt-6 text-xs text-charcoal-muted sm:flex-row sm:items-center sm:justify-between">
+          <span>© {new Date().getFullYear()} Distro. All rights reserved.</span>
+          <span>Chain id 143 · Monad Mainnet</span>
+        </div>
       </div>
     </footer>
   );
