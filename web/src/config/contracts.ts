@@ -23,22 +23,27 @@ interface ChainContracts {
 
 const CONTRACTS: Record<number, ChainContracts> = {
   [MONAD_MAINNET_CHAIN_ID]: {
-    // DEPLOYED but deliberately NOT wired in:
-    //   0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538 (block 88344367)
-    //
-    // The contract is UNAUDITED. Deploying it endangered nobody — it is
-    // ownerless, stateless, and holds nothing. Risk begins the moment real
-    // tokens are approved to it, which is exactly what filling this in would
-    // enable. docs/CTO_REVIEW.md makes an external audit blocking for
-    // mainnet, and the PRD's bar is "zero funds lost".
-    //
-    // Do not populate this to "unblock" the UI. Prove execution on testnet,
-    // get the audit, then wire it. See contracts/deployments/monad-mainnet.json.
-    multisend: undefined,
+    // WIRED IN (2026-07-19): 0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538 (block
+    // 88344367). Still UNAUDITED — this is a deliberate exception to the
+    // "audited before mainnet" rule, not a reversal of it, made explicitly by
+    // the user after the risk was restated: Multisend is stateless and
+    // non-custodial by construction (tokens move sender -> recipient in one
+    // call, the contract's balance is always zero), so a bug here cannot
+    // strand or steal escrowed funds the way one could in `Distribution`
+    // (the scheduled/escrow contract, which stays undefined below and
+    // remains blocked on a real audit — see docs/AUDIT_SCOPE.md). Worst case
+    // for Multisend is a failed/misencoded send, and the tokens never leave
+    // the sender's wallet. See contracts/deployments/monad-mainnet.json —
+    // bytecodeVerified there is true from the original deployment session;
+    // it could not be independently re-verified from this environment (no
+    // network access here) before this change, so re-verify with
+    // `cast code 0xd9C7…4538 --rpc-url https://rpc.monad.xyz` when you can.
+    multisend: "0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538",
     // Not deployed anywhere yet. Unlike Multisend, this contract holds real
     // user funds in escrow between fund() and execution — deploying it is a
     // strictly higher-stakes action, gated on its own explicit go-ahead, on
-    // top of the audit bar above. See contracts/src/DistributionFactory.sol.
+    // top of the audit bar above. See contracts/src/DistributionFactory.sol
+    // and docs/AUDIT_SCOPE.md.
     distributionFactory: undefined,
   },
   [MONAD_TESTNET_CHAIN_ID]: {

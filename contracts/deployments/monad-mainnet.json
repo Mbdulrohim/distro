@@ -12,8 +12,9 @@
       "deployedAt": "2026-07-17",
       "bytecodeVerified": true,
       "audited": false,
-      "wiredIntoApp": false,
-      "notes": "UNAUDITED. Deployed at the user's explicit instruction after the audit risk was stated. Deploying is harmless (the contract is ownerless, stateless, and holds nothing); risk begins only when real tokens are approved to it. Deliberately NOT in web/src/config/contracts.ts — do not wire it in until an external audit and a proven end-to-end execution path exist. Same address as testnet: identical deployer at nonce 0 yields the same CREATE address on both chains."
+      "wiredIntoApp": true,
+      "wiredIntoAppAt": "2026-07-19",
+      "notes": "UNAUDITED. Deployed at the user's explicit instruction after the audit risk was stated. Wired into web/src/config/contracts.ts on 2026-07-19, also at the user's explicit instruction, as a deliberate exception to (not a reversal of) the audit-before-mainnet rule: Multisend is stateless and non-custodial by construction, so a bug cannot strand or steal escrowed funds the way one could in the Distribution escrow contract, which remains unwired and blocked on a real audit (docs/AUDIT_SCOPE.md). bytecodeVerified below is from the original deployment session; re-verify with `cast code` when network access allows, since it could not be re-checked at wiring time. Same address as testnet: identical deployer at nonce 0 yields the same CREATE address on both chains."
     }
   }
 }
