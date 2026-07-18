@@ -8,6 +8,7 @@ import { truncateAddress } from "@/lib/format";
 import { planBatches, estimateCostWei, CONSERVATIVE_GAS_PER_RECIPIENT } from "@/lib/gas/estimate";
 import { formatScheduleForDisplay } from "@/lib/schedule/validate";
 import { formatAmount } from "@/lib/recipients/format";
+import { ScheduleCountdown } from "./schedule-countdown";
 import type { ValidRecipient } from "@/lib/recipients/types";
 import type { ResolvedToken } from "@/lib/tokens/types";
 import type { ScheduleDraft } from "@/lib/schedule/types";
@@ -241,9 +242,10 @@ function ScheduleValue({ schedule }: { schedule: ScheduleDraft }) {
   // the normal case, and "9:00" without a zone lands a run on the wrong day.
   const { local, utc } = formatScheduleForDisplay(schedule.executeAt);
   return (
-    <div className="flex flex-col items-end">
+    <div className="flex flex-col items-end gap-1">
       <span>{local}</span>
       <span className="font-mono text-xs text-muted-foreground">{utc}</span>
+      <ScheduleCountdown executeAfter={schedule.executeAt} />
     </div>
   );
 }

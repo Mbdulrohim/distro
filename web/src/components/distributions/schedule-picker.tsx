@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { validateSchedule, nowSeconds } from "@/lib/schedule/validate";
 import { MIN_LEAD_SECONDS } from "@/lib/schedule/types";
 import type { ScheduleDraft } from "@/lib/schedule/types";
+import { ScheduleCountdown } from "./schedule-countdown";
 
 interface SchedulePickerProps {
   value: ScheduleDraft;
@@ -111,10 +112,13 @@ export function SchedulePicker({ value, onChange, schedulingAvailable }: Schedul
           {!validation.ok && validation.errors.length > 0 ? (
             <p className="text-xs text-destructive">{validation.errors[0].message}</p>
           ) : validation.ok && validation.executeAt ? (
-            <p className="text-xs text-muted-foreground">
-              Funds are locked in escrow from the moment you fund this distribution until it runs or
-              you cancel it.
-            </p>
+            <>
+              <p className="text-xs text-muted-foreground">
+                Funds are locked in escrow from the moment you fund this distribution until it runs
+                or you cancel it.
+              </p>
+              <ScheduleCountdown executeAfter={validation.executeAt} />
+            </>
           ) : null}
         </div>
       ) : null}

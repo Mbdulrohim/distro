@@ -11,6 +11,7 @@ import {
 } from "@/lib/distributions/execute-scheduled";
 import { truncateAddress } from "@/lib/format";
 import { formatScheduleForDisplay } from "@/lib/schedule/validate";
+import { ScheduleCountdown } from "./schedule-countdown";
 
 /** Persist one executed chunk's results — the same endpoint the immediate
  * (Multisend) path posts to; `batch_index`/`index_in_batch` mean the same
@@ -170,10 +171,13 @@ export function ExecuteScheduledChunksPanel({
             Execute {chunks.length === 1 ? "this chunk" : `${chunks.length} remaining chunks`}
           </button>
           {executeAfter ? (
-            <p className="text-xs text-muted-foreground">
-              Scheduled for {formatScheduleForDisplay(executeAfter).local} — the contract itself
-              enforces this, this button just attempts it.
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">
+                Scheduled for {formatScheduleForDisplay(executeAfter).local} — the contract itself
+                enforces this, this button just attempts it.
+              </p>
+              <ScheduleCountdown executeAfter={executeAfter} />
+            </div>
           ) : null}
         </div>
       ) : (
