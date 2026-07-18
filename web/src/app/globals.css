@@ -84,14 +84,23 @@
   --radius-lg: 1.5rem;
   --radius-xl: 1.75rem;
 
-  /* Soft, purple-tinted floating shadows (DESIGN.md §4). */
-  --shadow-xs: 0 1px 2px rgba(31, 36, 48, 0.04);
-  --shadow-sm: 0 2px 8px rgba(109, 94, 247, 0.06), 0 1px 2px rgba(31, 36, 48, 0.04);
-  --shadow-md: 0 12px 32px rgba(109, 94, 247, 0.14), 0 4px 12px rgba(31, 36, 48, 0.06);
-  --shadow-lg: 0 24px 64px rgba(109, 94, 247, 0.18);
+  /* Soft, purple-tinted floating shadows (DESIGN.md §4). Layered — a tight
+     contact shadow plus a wide diffuse one — so cards read as resting on the
+     surface rather than stamped onto it. Neutral layer tuned to the text tone
+     (#2a2a33) for a warmer, less inky falloff. */
+  --shadow-xs: 0 1px 2px rgba(42, 42, 51, 0.04);
+  --shadow-sm:
+    0 1px 2px rgba(42, 42, 51, 0.04), 0 4px 12px rgba(109, 94, 247, 0.05),
+    0 8px 24px rgba(109, 94, 247, 0.04);
+  --shadow-md:
+    0 2px 4px rgba(42, 42, 51, 0.04), 0 12px 32px rgba(109, 94, 247, 0.12),
+    0 4px 12px rgba(42, 42, 51, 0.05);
+  --shadow-lg:
+    0 2px 8px rgba(42, 42, 51, 0.04), 0 24px 64px rgba(109, 94, 247, 0.16),
+    0 8px 24px rgba(109, 94, 247, 0.08);
 
   /* Sanctioned gradients (DESIGN.md §4) — never a flat linear SaaS band. */
-  --gradient-wash: linear-gradient(180deg, #ffffff 0%, #f4f1ff 100%);
+  --gradient-wash: linear-gradient(180deg, #ffffff 0%, #f7f5ff 100%);
   --gradient-mesh:
     radial-gradient(ellipse 60% 50% at 20% 20%, rgba(109, 94, 247, 0.14) 0%, transparent 60%),
     radial-gradient(ellipse 55% 45% at 85% 30%, rgba(139, 124, 255, 0.12) 0%, transparent 60%),
@@ -101,12 +110,12 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #1f2430;
+  --foreground: #2a2a33;
 
   --card: #ffffff;
-  --card-foreground: #1f2430;
+  --card-foreground: #2a2a33;
   --popover: #ffffff;
-  --popover-foreground: #1f2430;
+  --popover-foreground: #2a2a33;
 
   --primary: #6d5ef7;
   --primary-foreground: #ffffff;
@@ -116,16 +125,16 @@
      those sizes). Gradients, glows, large display numerals only. */
   --brand-secondary: #8b7cff;
 
-  --light-purple: #f4f1ff;
+  --light-purple: #f7f5ff;
   --lavender: #efeaff;
-  --surface: #f4f1ff;
+  --surface: #f7f5ff;
   --surface-2: #efeaff;
 
   /* Neutral secondary-button surface (quiet lavender-white), distinct from
      brand-secondary above. */
-  --secondary: #f4f1ff;
-  --secondary-foreground: #1f2430;
-  --muted: #f4f1ff;
+  --secondary: #f7f5ff;
+  --secondary-foreground: #2a2a33;
+  --muted: #f7f5ff;
   --muted-foreground: #5b6270;
   /* Same value as muted-foreground — `text-charcoal-muted` reads more
      legibly as brand vocabulary in components that quote DESIGN.md's own
@@ -135,9 +144,9 @@
   --accent: #efeaff;
   --accent-foreground: #5646d6;
 
-  --border: #e8e4f7;
+  --border: #e8e6f5;
   --border-strong: #d9d2f2;
-  --input: #e8e4f7;
+  --input: #e8e6f5;
   --ring: #6d5ef7;
 
   --destructive: #c4304b;
@@ -155,13 +164,13 @@
 
   --radius: 1rem;
 
-  --sidebar: #f4f1ff;
-  --sidebar-foreground: #1f2430;
+  --sidebar: #f7f5ff;
+  --sidebar-foreground: #2a2a33;
   --sidebar-primary: #6d5ef7;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #efeaff;
   --sidebar-accent-foreground: #5646d6;
-  --sidebar-border: #e8e4f7;
+  --sidebar-border: #e8e6f5;
   --sidebar-ring: #6d5ef7;
 }
 
@@ -181,6 +190,14 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    @apply scroll-smooth font-sans;
+    /* Anchor targets clear the sticky header (h-16). */
+    scroll-padding-top: 5rem;
+  }
+  /* Respect reduced-motion for the smooth-scroll and every transition. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 }

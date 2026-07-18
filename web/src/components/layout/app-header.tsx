@@ -8,12 +8,19 @@ import { DistroMark } from "@/components/brand/distro-mark";
  */
 export function AppHeader() {
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border px-6">
-      <Link href="/" className="flex items-center gap-2 text-primary">
-        <DistroMark className="h-5 w-5" />
-        <span className="text-[0.95rem] font-semibold tracking-tight text-foreground">Distro</span>
-      </Link>
-      <ConnectWalletButton />
+    <header className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-md backdrop-saturate-150">
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
+        <Link
+          href="/"
+          className="group flex items-center gap-2.5 text-primary transition-opacity hover:opacity-80"
+        >
+          <DistroMark className="h-5 w-5 transition-transform duration-300 ease-out group-hover:scale-110" />
+          <span className="text-[0.95rem] font-semibold tracking-tight text-foreground">
+            Distro
+          </span>
+        </Link>
+        <ConnectWalletButton />
+      </div>
     </header>
   );
 }

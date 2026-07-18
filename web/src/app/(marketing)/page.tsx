@@ -241,7 +241,7 @@ function Problem() {
     <section className="bg-light-purple">
       <div className="mx-auto w-full max-w-4xl px-6 py-28">
         <Reveal>
-          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          <h2 className="max-w-2xl text-[2rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-[2.75rem]">
             Blockchain made transfers permissionless. It never made distribution efficient.
           </h2>
           <p className="mt-5 max-w-xl text-lg text-pretty text-charcoal-muted">
@@ -305,10 +305,12 @@ function HowItWorks() {
     },
   ];
   return (
-    <section className="bg-background">
+    <section className="bg-light-purple">
       <div className="mx-auto w-full max-w-5xl px-6 py-28">
         <Reveal>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">How it works</h2>
+          <h2 className="text-[2rem] leading-[1.1] font-semibold tracking-tight sm:text-[2.75rem]">
+            How it works
+          </h2>
         </Reveal>
         <RevealGroup className="mt-14 grid gap-12 sm:grid-cols-3">
           {steps.map((s, i) => (
@@ -356,10 +358,10 @@ function Features() {
     },
   ];
   return (
-    <section style={{ backgroundImage: "var(--gradient-mesh)" }}>
+    <section style={{ background: "var(--gradient-mesh)" }}>
       <div className="mx-auto w-full max-w-5xl px-6 py-28">
         <Reveal>
-          <h2 className="max-w-xl text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h2 className="max-w-xl text-[2rem] leading-[1.1] font-semibold tracking-tight sm:text-[2.75rem]">
             Four things Distro does, and does precisely.
           </h2>
         </Reveal>
@@ -392,12 +394,12 @@ function Templates() {
     ["Grant cohort · Q1", "12 recipients"],
   ];
   return (
-    <section className="bg-light-purple">
+    <section className="bg-background">
       <div className="mx-auto grid w-full max-w-5xl gap-14 px-6 py-28 lg:grid-cols-2 lg:items-center">
         <Reveal>
           <div className="flex flex-col gap-5">
             <FileText className="size-6 text-primary" />
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h2 className="text-[2rem] leading-[1.1] font-semibold tracking-tight sm:text-[2.75rem]">
               Save a distribution. Run it again next month.
             </h2>
             <p className="max-w-md text-charcoal-muted">
@@ -481,7 +483,7 @@ function WhoUsesDistro() {
     <section className="bg-light-purple">
       <div className="mx-auto w-full max-w-5xl px-6 py-28">
         <Reveal>
-          <h2 className="max-w-xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          <h2 className="max-w-xl text-[2rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-[2.75rem]">
             Built for anyone paying more than one wallet at a time.
           </h2>
         </Reveal>
@@ -542,10 +544,10 @@ function WhyMonad() {
     },
   ];
   return (
-    <section className="bg-background">
+    <section className="bg-light-purple">
       <div className="mx-auto grid w-full max-w-5xl gap-16 px-6 py-28 lg:grid-cols-[1fr_1.2fr]">
         <Reveal>
-          <h2 className="text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
+          <h2 className="text-[2rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-[2.75rem]">
             Why Distro is built on Monad
           </h2>
         </Reveal>
@@ -587,10 +589,12 @@ function Security() {
     },
   ];
   return (
-    <section id="security" className="scroll-mt-16 bg-light-purple">
+    <section id="security" className="scroll-mt-20 bg-background">
       <div className="mx-auto w-full max-w-5xl px-6 py-28">
         <Reveal>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Security</h2>
+          <h2 className="text-[2rem] leading-[1.1] font-semibold tracking-tight sm:text-[2.75rem]">
+            Security
+          </h2>
           <p className="mt-4 max-w-2xl text-charcoal-muted">
             Distro moves real money, so the guarantees are architectural, not promises. It is not a
             wallet, an exchange, or a custodian.
@@ -664,7 +668,9 @@ function Faq() {
     <section className="bg-background">
       <div className="mx-auto w-full max-w-3xl px-6 py-28">
         <Reveal>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Questions</h2>
+          <h2 className="text-[2rem] leading-[1.1] font-semibold tracking-tight sm:text-[2.75rem]">
+            Questions
+          </h2>
         </Reveal>
         <div className="mt-12 divide-y divide-border border-y border-border">
           {items.map((it) => (
@@ -688,10 +694,7 @@ function Faq() {
 
 function FinalCta() {
   return (
-    <section
-      className="relative overflow-hidden"
-      style={{ backgroundImage: "var(--gradient-mesh)" }}
-    >
+    <section className="relative overflow-hidden" style={{ background: "var(--gradient-mesh)" }}>
       <div className="mx-auto w-full max-w-3xl px-6 py-28 text-center">
         <Reveal>
           <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
