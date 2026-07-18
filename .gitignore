@@ -42,3 +42,4 @@ Thumbs.db
 # Impeccable (machine-local)
 .impeccable/config.local.json
 .impeccable/live/
+.claude/settings.local.json

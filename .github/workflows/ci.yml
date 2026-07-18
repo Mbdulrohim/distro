@@ -37,6 +37,14 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      # contracts/lib/ is gitignored (see contracts/README.md) — a fresh
+      # checkout has no forge-std or OpenZeppelin, so every step below fails
+      # to resolve imports until these are restored.
+      - name: Install contract dependencies (forge-std, OpenZeppelin)
+        run: |
+          forge install --no-git foundry-rs/forge-std
+          forge install --no-git OpenZeppelin/openzeppelin-contracts
+
       - name: Forge fmt check
         run: forge fmt --check
 
@@ -59,9 +67,15 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          # Single npm-workspaces lockfile lives at the repo root — there is
+          # no web/package-lock.json. Pointing this at a nonexistent file
+          # makes actions/setup-node hard-fail before `npm ci` ever runs.
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
+        # Must run from the repo root: `npm ci` in an npm-workspaces monorepo
+        # resolves against the single root lockfile, not a per-workspace one.
+        working-directory: .
         run: npm ci
 
       - name: Lint
