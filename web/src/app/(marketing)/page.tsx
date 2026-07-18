@@ -86,11 +86,9 @@ function Hero() {
       <div className="relative mx-auto grid w-full max-w-6xl gap-16 px-6 py-24 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-36">
         <Reveal duration={0.7}>
           <div className="flex flex-col gap-7">
-            <p className="text-xs font-semibold tracking-[0.16em] text-primary-text uppercase">
-              Onchain distribution engine
-            </p>
+            <MonadBadge />
             <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl lg:text-[4.5rem]">
-              Distribute tokens to hundreds of wallets. In one workflow.
+              Onchain distribution engine
             </h1>
             <p className="max-w-md text-lg text-pretty text-charcoal-muted">
               Distro is an onchain distribution platform that helps teams automate token payouts at
@@ -100,16 +98,13 @@ function Hero() {
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <ConnectWalletButton label="Start Distribution" size="lg" />
               <Link
-                href="https://github.com/tweetbysobur/distro/tree/main/docs"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#how-it-works"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary-text"
               >
-                View Documentation
+                How This Works
                 <ArrowRight className="size-4" />
               </Link>
             </div>
-            <MonadBadge />
           </div>
         </Reveal>
 
@@ -305,7 +300,7 @@ function HowItWorks() {
     },
   ];
   return (
-    <section className="bg-light-purple">
+    <section id="how-it-works" className="scroll-mt-20 bg-light-purple">
       <div className="mx-auto w-full max-w-5xl px-6 py-28">
         <Reveal>
           <h2 className="text-[2rem] leading-[1.1] font-semibold tracking-tight sm:text-[2.75rem]">
