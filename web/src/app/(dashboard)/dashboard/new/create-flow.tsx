@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, BookmarkPlus } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { TokenSelector } from "@/components/tokens/token-selector";
 import { RecipientManager } from "@/components/recipients/recipient-manager";
 import { DistributionReview } from "@/components/distributions/distribution-review";
@@ -204,19 +206,19 @@ export function CreateFlow() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <div className="mx-auto w-full max-w-3xl px-6 py-10 sm:py-12">
       <button
         onClick={() => router.push("/dashboard")}
-        className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
         Distributions
       </button>
 
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">New distribution</h1>
+      <h1 className="mb-8 text-3xl font-semibold tracking-tight">New distribution</h1>
       <StepRail current={step} />
 
-      <div className="mt-8">
+      <Card className="mt-8 p-6 sm:p-8">
         {step === "details" ? (
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-1.5">
@@ -400,7 +402,7 @@ export function CreateFlow() {
             </div>
           )
         ) : null}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -408,27 +410,43 @@ export function CreateFlow() {
 function StepRail({ current }: { current: Step }) {
   const currentIndex = STEPS.findIndex((s) => s.id === current);
   return (
-    <ol className="flex items-center gap-2 text-sm">
+    <ol className="flex items-center">
       {STEPS.map((s, i) => {
         const done = i < currentIndex;
         const active = i === currentIndex;
         return (
-          <li key={s.id} className="flex items-center gap-2">
-            <span
-              className={
-                active
-                  ? "font-medium text-foreground"
-                  : done
-                    ? "text-muted-foreground"
-                    : "text-muted-foreground/60"
-              }
-            >
-              {s.label}
-            </span>
-            {i < STEPS.length - 1 ? (
-              <span aria-hidden className="text-muted-foreground/40">
-                —
+          <li key={s.id} className="flex flex-1 items-center last:flex-none">
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-full border text-sm font-medium transition-colors",
+                  done
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : active
+                      ? "border-primary bg-light-purple text-primary-text"
+                      : "border-border bg-background text-muted-foreground",
+                )}
+              >
+                {done ? <Check className="size-4" /> : i + 1}
+              </div>
+              <span
+                className={cn(
+                  "text-xs font-medium whitespace-nowrap",
+                  active ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {s.label}
               </span>
+            </div>
+            {i < STEPS.length - 1 ? (
+              <div
+                aria-hidden
+                className={cn(
+                  "mx-2 h-px flex-1 transition-colors sm:mx-4",
+                  done ? "bg-primary" : "bg-border",
+                )}
+                style={{ marginBottom: "1.25rem" }}
+              />
             ) : null}
           </li>
         );
