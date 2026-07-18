@@ -217,6 +217,34 @@ contract DistributionTest is Test {
         factory.setFee(101, treasury);
     }
 
+    /// @dev A nonzero fee with nowhere to send it would silently strand value —
+    /// require a treasury address before it can be turned on.
+    function test_setFee_nonzeroRequiresTreasury() public {
+        vm.prank(owner);
+        vm.expectRevert(DistributionFactory.TreasuryRequired.selector);
+        factory.setFee(50, address(0));
+    }
+
+    /// @dev Zero fee with no treasury is fine — that's how to turn fees back off.
+    function test_setFee_zeroFeeAllowsZeroTreasury() public {
+        vm.prank(owner);
+        factory.setFee(0, address(0));
+        assertEq(factory.protocolFeeBps(), 0);
+    }
+
+    function test_setFee_onlyOwner() public {
+        vm.prank(stranger);
+        vm.expectRevert();
+        factory.setFee(50, treasury);
+    }
+
+    function test_setFee_emitsFeeUpdated() public {
+        vm.expectEmit(false, false, false, true);
+        emit DistributionFactory.FeeUpdated(50, treasury);
+        vm.prank(owner);
+        factory.setFee(50, treasury);
+    }
+
     /*//////////////////////////////////////////////////////////////
                                 EXECUTE
     //////////////////////////////////////////////////////////////*/
@@ -586,6 +614,57 @@ contract DistributionTest is Test {
         factory.createDistribution(address(token), executeAfter, 1, bytes32(uint256(9)));
     }
 
+    /// @dev Unpausing must restore creation — pause is a temporary brake, not
+    /// a one-way switch that quietly makes the factory permanently useless.
+    function test_factoryPause_unpauseRestoresCreation() public {
+        vm.startPrank(owner);
+        factory.setPaused(true);
+        factory.setPaused(false);
+        vm.stopPrank();
+
+        Distribution d = _create(address(token), 1, bytes32(uint256(10)));
+        assertTrue(address(d) != address(0));
+    }
+
+    function test_factoryPause_onlyOwner() public {
+        vm.prank(stranger);
+        vm.expectRevert();
+        factory.setPaused(true);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                          FACTORY — PER-CREATOR INDEX
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev The dashboard's "list my distributions" query — every clone this
+    /// creator has ever deployed, in creation order.
+    function test_distributionsOf_tracksEveryCreation() public {
+        Distribution d1 = _create(address(token), 1, bytes32(uint256(20)));
+        Distribution d2 = _create(address(token), 1, bytes32(uint256(21)));
+
+        address[] memory mine = factory.distributionsOf(creator);
+        assertEq(mine.length, 2);
+        assertEq(mine[0], address(d1));
+        assertEq(mine[1], address(d2));
+        assertEq(factory.distributionCount(creator), 2);
+    }
+
+    /// @dev Creators are isolated from each other's index — a stranger's list
+    /// must never include this creator's distributions, or vice versa.
+    function test_distributionsOf_isolatedPerCreator() public {
+        _create(address(token), 1, bytes32(uint256(22)));
+        vm.prank(stranger);
+        factory.createDistribution(address(token), executeAfter, 1, bytes32(uint256(23)));
+
+        assertEq(factory.distributionCount(creator), 1);
+        assertEq(factory.distributionCount(stranger), 1);
+    }
+
+    function test_distributionsOf_emptyForUnknownCreator() public {
+        assertEq(factory.distributionCount(stranger), 0);
+        assertEq(factory.distributionsOf(stranger).length, 0);
+    }
+
     /// @dev There is no owner-callable function on Distribution at all. If this
     /// ever compiles differently, someone added a backdoor.
     function test_factoryOwner_hasNoPowerOverDistributionFunds() public {
@@ -647,6 +726,49 @@ contract DistributionTest is Test {
         vm.expectRevert(Distribution.WrongState.selector);
         d.executeChunk(0, payload);
         assertEq(token.balanceOf(alice), 0);
+    }
+
+    /// @dev Same invariant as `testFuzz_neverPaysOutMoreThanEscrowed`, on the
+    /// native-MON path specifically — the newest code, and the one an
+    /// auditor should scrutinize hardest (call-based reentrancy surface).
+    function testFuzz_native_neverPaysOutMoreThanEscrowed(uint96 a1, uint96 a2, uint96 a3) public {
+        vm.assume(a1 > 0 && a2 > 0 && a3 > 0);
+        uint256 total = uint256(a1) + a2 + a3;
+
+        bytes memory payload = bytes.concat(_entry(alice, a1), _entry(bob, a2), _entry(carol, a3));
+        Distribution d = _fundedNative(payload, total);
+
+        assertEq(d.totalAmount(), total);
+        vm.warp(executeAfter);
+        d.executeChunk(0, payload);
+
+        assertEq(d.totalPaid() + d.failedAmount(), total);
+        assertLe(d.totalPaid(), total);
+        assertEq(address(d).balance, d.failedAmount(), "escrow holds exactly the failures");
+    }
+
+    /// @dev A cancelled native-MON distribution can never pay anyone — same
+    /// invariant as the ERC-20 fuzz test, on the native path.
+    function testFuzz_native_cancelledNeverPays(uint96 amount) public {
+        vm.assume(amount > 0);
+        bytes memory payload = _entry(alice, amount);
+
+        vm.prank(creator);
+        Distribution d = Distribution(
+            factory.createDistribution(address(0), executeAfter, 1, bytes32(uint256(103)))
+        );
+        vm.prank(creator);
+        d.commitChunk(0, payload);
+        vm.deal(creator, amount);
+        vm.startPrank(creator);
+        d.fund{ value: amount }();
+        d.cancel();
+        vm.stopPrank();
+
+        vm.warp(executeAfter);
+        vm.expectRevert(Distribution.WrongState.selector);
+        d.executeChunk(0, payload);
+        assertEq(alice.balance, 0);
     }
 
     /*//////////////////////////////////////////////////////////////

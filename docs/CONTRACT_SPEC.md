@@ -169,7 +169,7 @@ Sets `reclaimed = true`, which blocks further execution — otherwise a chunk ex
 
 ## Security considerations
 
-- **`SafeERC20` everywhere.** Never raw `IERC20.transfer` — tokens that don't return a `bool` fail silently otherwise.
+- **`SafeERC20` everywhere on the ERC-20 path.** Never raw `IERC20.transfer` — tokens that don't return a `bool` fail silently otherwise. The native-MON path (O5) is not a gap in this rule — it's a distinct branch that never touches an ERC-20 interface at all.
 - **Checks-effects-interactions** + `nonReentrant` on `executeChunk` / `retry` / `fund`.
 - **Exclude ERC-777 / callback-capable tokens.** Transfer hooks are a reentrancy vector even with a guard on the calling function, since the callback can re-enter a _different_ one.
 - **Reject fee-on-transfer / rebasing at `fund()`** via the balance-delta check.
@@ -215,7 +215,19 @@ A gas tip from escrow remains the upgrade path if third-party execution ever nee
 
 **O4 — Token allowlist.** Fee-on-transfer/rebasing are rejected at funding, but nothing curates known-broken tokens, and USDC-class blocklists produce failures that look like Distro bugs. Curated allowlist for v1, or accept and document?
 
-**O5 — Native MON distribution.** v1 is ERC-20 only. Native transfers introduce call-based reentrancy and gas-forwarding griefing; needs its own design pass.
+**O5 — Native MON distribution. — DECIDED (2026-07-19): supported, via a sentinel, not a second contract.**
+
+`token == address(0)` (`NATIVE`) means this distribution escrows native MON instead of an ERC-20. One `Distribution` implementation handles both — the state machine, scheduling, and cancellation/reclaim rules are identical either way, so a second contract would only duplicate them and double the audit surface.
+
+What changes per-branch:
+
+- `fund()` is `payable`. Native: `msg.value` must equal `totalAmount + fee` exactly (no balance-delta dance needed — the value transfer either happens atomically or the call reverts, so there's no fee-on-transfer-style short-fund risk to guard against). ERC-20: unchanged (`safeTransferFrom` + balance-delta check), and `msg.value` must be exactly `0` — a native-path call with stray value alongside an ERC-20 pull is rejected outright, not silently accepted.
+- Payouts, the treasury fee, and cancel/reclaim refunds all branch the same way: native uses a plain `call{value:}` with empty calldata; ERC-20 uses `SafeERC20`/the existing tolerant low-level `transfer`.
+- The **gas-griefing floor (`MIN_GAS_PER_TRANSFER`) applies identically** to native sends — a recipient contract with an expensive or reverting `receive()`/`fallback()` is isolated exactly like a blocklisted ERC-20 recipient (recorded `PaymentFailed`, chunk continues), never allowed to poison the batch or consume the caller's remaining gas budget in a way that mislabels other recipients.
+- **Reentrancy**: `nonReentrant` (OZ `ReentrancyGuard`) is a single, contract-wide lock shared across `fund`/`executeChunk`/`retry`/`cancel`/`reclaim` — a native `call{value:}` inside one of them cannot re-enter any of the others, not just itself. This is the specific area an auditor should push hardest on, since it's the newest code and the classic native-transfer vector.
+- No `receive()`/`fallback()` is defined outside `fund()` itself, so a stray native send to a `Distribution` clone (outside the exact `fund()` call) reverts rather than silently donating value with no accounting for it.
+
+**Decided (2026-07-19): `schedule()` is its own step, not fixed at creation.** `executeAfter` is mutable by the creator any time before the first chunk executes (same gate as `cancel()`) — `createDistribution` no longer needs to know the final schedule at creation time, and a distribution created with `executeAfter == 0` is immediately executable once funded.
 
 ## Sequence before any Solidity
 
