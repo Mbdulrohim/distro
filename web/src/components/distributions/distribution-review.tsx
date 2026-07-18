@@ -99,6 +99,10 @@ export function DistributionReview({
 
       {/* Summary */}
       <dl className="grid gap-3 rounded-lg border border-border p-5 text-sm">
+        <Row label="Distribution name">
+          <span className="font-medium">{name || "Untitled distribution"}</span>
+        </Row>
+
         <Row label="Token">
           <span className="font-medium">{token.symbol}</span>
           {token.address ? (
