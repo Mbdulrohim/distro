@@ -160,6 +160,25 @@ contract GasBurnerToken is ERC20 {
     }
 }
 
+/// @dev Rejects any native MON sent to it — the native-MON analogue of
+/// `BlocklistToken`: proves one recipient refusing a payment doesn't stop the
+/// rest of a native-MON distribution.
+contract RevertingReceiver {
+    receive() external payable {
+        revert("nope");
+    }
+}
+
+/// @dev Consumes every unit of gas forwarded with a native MON send — the
+/// native-MON analogue of `TransferGasBurnerToken`, for the gas-griefing test.
+contract GasBurnerReceiver {
+    receive() external payable {
+        assembly {
+            invalid()
+        }
+    }
+}
+
 /// @dev Burns gas on `transfer` while `transferFrom` works normally.
 ///
 /// The escrow's shape demands this split: it is funded via `transferFrom` and

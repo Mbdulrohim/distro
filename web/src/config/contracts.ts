@@ -16,6 +16,9 @@ const MONAD_TESTNET_CHAIN_ID = 10143;
 
 interface ChainContracts {
   multisend?: `0x${string}`;
+  /** `DistributionFactory` — the Tier-2 scheduled-escrow system. Undeployed
+   * everywhere today; see contracts/src/DistributionFactory.sol. */
+  distributionFactory?: `0x${string}`;
 }
 
 const CONTRACTS: Record<number, ChainContracts> = {
@@ -32,11 +35,17 @@ const CONTRACTS: Record<number, ChainContracts> = {
     // Do not populate this to "unblock" the UI. Prove execution on testnet,
     // get the audit, then wire it. See contracts/deployments/monad-mainnet.json.
     multisend: undefined,
+    // Not deployed anywhere yet. Unlike Multisend, this contract holds real
+    // user funds in escrow between fund() and execution — deploying it is a
+    // strictly higher-stakes action, gated on its own explicit go-ahead, on
+    // top of the audit bar above. See contracts/src/DistributionFactory.sol.
+    distributionFactory: undefined,
   },
   [MONAD_TESTNET_CHAIN_ID]: {
     // Verified byte-for-byte against out/Multisend.sol/Multisend.json.
     // contracts/deployments/monad-testnet.json — keep both in sync.
     multisend: "0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538",
+    distributionFactory: undefined,
   },
 };
 
@@ -56,6 +65,24 @@ export function getMultisendAddress(chainId: number): `0x${string}` {
     throw new Error(
       `Multisend is not deployed on chain ${chainId}. See contracts/deployments/ and docs/ROADMAP.md.`,
     );
+  }
+  return address;
+}
+
+/** True when scheduled/escrow distributions are available on this chain. */
+export function isDistributionFactoryDeployed(chainId: number): boolean {
+  return Boolean(CONTRACTS[chainId]?.distributionFactory);
+}
+
+/**
+ * Deployed `DistributionFactory` address for a chain.
+ * @throws if not deployed — callers must gate on `isDistributionFactoryDeployed`
+ * and show a real state, never attempt a transaction against a missing contract.
+ */
+export function getDistributionFactoryAddress(chainId: number): `0x${string}` {
+  const address = CONTRACTS[chainId]?.distributionFactory;
+  if (!address) {
+    throw new Error(`DistributionFactory is not deployed on chain ${chainId}.`);
   }
   return address;
 }

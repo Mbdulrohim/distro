@@ -8,19 +8,25 @@ import { TokenSelector } from "@/components/tokens/token-selector";
 import { RecipientManager } from "@/components/recipients/recipient-manager";
 import { DistributionReview } from "@/components/distributions/distribution-review";
 import { useAccount } from "wagmi";
-import { isMultisendDeployed, getMultisendAddress } from "@/config/contracts";
+import {
+  isMultisendDeployed,
+  getMultisendAddress,
+  isDistributionFactoryDeployed,
+} from "@/config/contracts";
 import { ExecutePanel } from "@/components/distributions/execute-panel";
+import { SchedulePicker } from "@/components/distributions/schedule-picker";
 import { formatAmount } from "@/lib/recipients/format";
 import type { TokenRef, TokenSelection } from "@/lib/tokens/types";
 import type { ValidRecipient } from "@/lib/recipients/types";
 import type { ScheduleDraft } from "@/lib/schedule/types";
 import type { TemplateDetail } from "@/lib/db/templates";
 
-type Step = "details" | "recipients" | "review";
+type Step = "details" | "recipients" | "schedule" | "review";
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "details", label: "Token" },
   { id: "recipients", label: "Recipients" },
+  { id: "schedule", label: "Schedule" },
   { id: "review", label: "Review" },
 ];
 
@@ -83,9 +89,9 @@ export function CreateFlow() {
     };
   }, [templateId]);
 
-  // Execute-now is the only mode the deployed stack supports; the scheduled
-  // branch needs the escrow contracts.
-  const schedule: ScheduleDraft = { mode: "now" };
+  const [schedule, setSchedule] = useState<ScheduleDraft>({ mode: "now" });
+  const [scheduleValid, setScheduleValid] = useState(true);
+  const schedulingAvailable = chainId !== undefined && isDistributionFactoryDeployed(chainId);
 
   // Stable identity: RecipientManager emits on every validation change, so an
   // inline closure would re-fire its effect on every render.
@@ -103,7 +109,8 @@ export function CreateFlow() {
 
   const tokenReady = token !== undefined && token.distributable && token.address !== undefined;
   const canLeaveDetails = name.trim() !== "" && tokenReady;
-  const canReview = canLeaveDetails && recipients.length > 0 && recipientsOk;
+  const canLeaveRecipients = canLeaveDetails && recipients.length > 0 && recipientsOk;
+  const canReview = canLeaveRecipients && scheduleValid;
 
   async function onConfirm() {
     if (!token?.address) return;
@@ -237,6 +244,27 @@ export function CreateFlow() {
             />
             <div className="flex justify-between">
               <Button variant="secondary" size="sm" onClick={() => setStep("details")}>
+                Back
+              </Button>
+              <Button size="sm" disabled={!canLeaveRecipients} onClick={() => setStep("schedule")}>
+                Continue
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "schedule" ? (
+          <div className="flex flex-col gap-6">
+            <SchedulePicker
+              value={schedule}
+              schedulingAvailable={schedulingAvailable}
+              onChange={(draft, valid) => {
+                setSchedule(draft);
+                setScheduleValid(valid);
+              }}
+            />
+            <div className="flex justify-between">
+              <Button variant="secondary" size="sm" onClick={() => setStep("recipients")}>
                 Back
               </Button>
               <Button size="sm" disabled={!canReview} onClick={() => setStep("review")}>

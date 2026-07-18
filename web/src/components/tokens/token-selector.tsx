@@ -20,9 +20,9 @@ import { cn } from "@/lib/utils";
  * its `decimals` drive human↔base conversion in the recipient pipeline and its
  * `balance` drives the sufficient-balance check.
  *
- * Native MON appears with its balance but cannot be selected for distribution
- * (the contract has no native path — docs/CONTRACT_SPEC.md O5). It points at
- * WMON rather than dead-ending.
+ * Native MON appears with its balance. Whether it's selectable depends on
+ * `mode`: `Multisend` ("immediate") has no native path — MON points at WMON
+ * instead — while the escrow contract ("scheduled") takes native MON directly.
  */
 
 interface TokenSelectorProps {
@@ -32,9 +32,17 @@ interface TokenSelectorProps {
   /** Pre-selects a token ref (e.g. when starting a distribution from a
    * saved template). Only applied once, on mount — not a controlled value. */
   initialRef?: TokenRef;
+  /** Which contract this selection is for — decides whether native MON is
+   * distributable. Defaults to "immediate" (`Multisend`), today's only wired path. */
+  mode?: "immediate" | "scheduled";
 }
 
-export function TokenSelector({ requiredAmount, onSelect, initialRef }: TokenSelectorProps) {
+export function TokenSelector({
+  requiredAmount,
+  onSelect,
+  initialRef,
+  mode = "immediate",
+}: TokenSelectorProps) {
   const chainId = useChainId();
   const supported = getSupportedTokens(chainId);
 
@@ -43,7 +51,7 @@ export function TokenSelector({ requiredAmount, onSelect, initialRef }: TokenSel
     initialRef && !supported.some((t) => t.ref === initialRef) ? initialRef : "",
   );
 
-  const { token, isLoading, error } = useTokenInfo(selectedRef);
+  const { token, isLoading, error } = useTokenInfo(selectedRef, mode);
   const { balance, isLoading: balanceLoading } = useTokenBalance(selectedRef);
 
   const insufficient =
@@ -66,6 +74,7 @@ export function TokenSelector({ requiredAmount, onSelect, initialRef }: TokenSel
           <TokenRow
             key={t.ref}
             token={t}
+            mode={mode}
             selected={selectedRef === t.ref}
             onSelect={() => {
               setSelectedRef(t.ref);
@@ -150,13 +159,19 @@ function TokenRow({
   token,
   selected,
   onSelect,
+  mode,
 }: {
   token: RegistryToken;
   selected: boolean;
   onSelect: () => void;
+  mode: "immediate" | "scheduled";
 }) {
   const { balance } = useTokenBalance(token.ref);
-  const { token: info } = useTokenInfo(token.ref);
+  const { token: info } = useTokenInfo(token.ref, mode);
+  // The registry's `distributable` reflects Multisend eligibility (its own
+  // doc comment says so); the live, mode-aware value from `useTokenInfo` is
+  // what native MON's eligibility actually depends on.
+  const distributable = info?.distributable ?? token.distributable;
 
   return (
     <button
@@ -166,13 +181,13 @@ function TokenRow({
       className={cn(
         "flex items-center justify-between gap-4 rounded-md border px-3 py-2 text-left text-sm transition-colors",
         selected ? "border-ring bg-muted" : "border-border hover:bg-muted/50",
-        !token.distributable && "opacity-60",
+        !distributable && "opacity-60",
       )}
     >
       <span className="flex flex-col">
         <span className="flex items-center gap-2 font-medium">
           {token.symbol}
-          {!token.distributable ? (
+          {!distributable ? (
             <span className="rounded-sm border border-border px-1.5 py-0.5 text-[0.7rem] font-normal text-muted-foreground">
               not distributable
             </span>

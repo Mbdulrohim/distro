@@ -10,7 +10,9 @@ import {
     StandardToken,
     BlocklistToken,
     NoReturnToken,
-    TransferGasBurnerToken
+    TransferGasBurnerToken,
+    RevertingReceiver,
+    GasBurnerReceiver
 } from "./mocks/MockTokens.sol";
 
 contract DistributionTest is Test {
@@ -645,5 +647,221 @@ contract DistributionTest is Test {
         vm.expectRevert(Distribution.WrongState.selector);
         d.executeChunk(0, payload);
         assertEq(token.balanceOf(alice), 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                 SCHEDULE
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev Create and schedule are independent: a distribution created with
+    /// no schedule (0) is immediately executable until `schedule()` is called.
+    function test_schedule_decoupledFromCreation() public {
+        vm.prank(creator);
+        Distribution d =
+            Distribution(factory.createDistribution(address(token), 0, 1, bytes32(uint256(1))));
+        assertEq(d.executeAfter(), 0);
+
+        vm.prank(creator);
+        d.commitChunk(0, _payload3());
+        vm.startPrank(creator);
+        token.approve(address(d), type(uint256).max);
+        d.fund();
+        vm.stopPrank();
+
+        // No TooEarly revert: executeAfter is still 0.
+        d.executeChunk(0, _payload3());
+        assertEq(uint8(d.state()), uint8(Distribution.State.Completed));
+    }
+
+    function test_schedule_setsExecuteAfterAndEmits() public {
+        Distribution d = _create(address(token), 1, bytes32(uint256(1)));
+        uint64 newTime = uint64(block.timestamp + 5 days);
+
+        vm.expectEmit(false, false, false, true);
+        emit Distribution.DistributionScheduled(newTime);
+        vm.prank(creator);
+        d.schedule(newTime);
+
+        assertEq(d.executeAfter(), newTime);
+    }
+
+    function test_schedule_onlyCreator() public {
+        Distribution d = _create(address(token), 1, bytes32(uint256(1)));
+        vm.prank(stranger);
+        vm.expectRevert(Distribution.NotCreator.selector);
+        d.schedule(uint64(block.timestamp + 1 days));
+    }
+
+    /// @dev Same gate as cancel(): once execution has begun, the schedule that
+    /// got you there is no longer something you get to move.
+    function test_schedule_blockedOnceExecutionHasStarted() public {
+        Distribution d = _create(address(token), 2, bytes32(uint256(1)));
+        vm.startPrank(creator);
+        d.commitChunk(0, _entry(alice, 1 ether));
+        d.commitChunk(1, _entry(bob, 2 ether));
+        token.approve(address(d), type(uint256).max);
+        d.fund();
+        vm.stopPrank();
+        vm.warp(executeAfter);
+        d.executeChunk(0, _entry(alice, 1 ether));
+
+        vm.prank(creator);
+        vm.expectRevert(Distribution.WrongState.selector);
+        d.schedule(uint64(block.timestamp + 1 days));
+    }
+
+    function test_schedule_canRescheduleBeforeExecution() public {
+        Distribution d = _fundedWith(_payload3());
+        uint64 later = executeAfter + 10 days;
+
+        vm.prank(creator);
+        d.schedule(later);
+
+        vm.warp(executeAfter); // the ORIGINAL schedule
+        vm.expectRevert(Distribution.TooEarly.selector);
+        d.executeChunk(0, _payload3());
+
+        vm.warp(later);
+        d.executeChunk(0, _payload3());
+        assertEq(uint8(d.state()), uint8(Distribution.State.Completed));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              NATIVE MON
+    //////////////////////////////////////////////////////////////*/
+
+    function _fundedNative(bytes memory payload, uint256 value) internal returns (Distribution d) {
+        vm.prank(creator);
+        d = Distribution(
+            factory.createDistribution(address(0), executeAfter, 1, bytes32(uint256(100)))
+        );
+        vm.prank(creator);
+        d.commitChunk(0, payload);
+        vm.deal(creator, value);
+        vm.prank(creator);
+        d.fund{ value: value }();
+    }
+
+    function test_native_fundEscrowsExactValue() public {
+        Distribution d = _fundedNative(_payload3(), 6 ether);
+        assertEq(address(d).balance, 6 ether);
+        assertEq(uint8(d.state()), uint8(Distribution.State.Funded));
+    }
+
+    function test_native_fundRejectsWrongValue() public {
+        vm.prank(creator);
+        Distribution d = Distribution(
+            factory.createDistribution(address(0), executeAfter, 1, bytes32(uint256(101)))
+        );
+        vm.prank(creator);
+        d.commitChunk(0, _payload3());
+
+        vm.deal(creator, 10 ether);
+        vm.prank(creator);
+        vm.expectRevert(Distribution.IncorrectValue.selector);
+        d.fund{ value: 5 ether }(); // short of the required 6 ether
+    }
+
+    function test_native_fundRejectsValueOnErc20Path() public {
+        Distribution d = _create(address(token), 1, bytes32(uint256(102)));
+        vm.prank(creator);
+        d.commitChunk(0, _payload3());
+
+        vm.deal(creator, 1 ether);
+        vm.startPrank(creator);
+        token.approve(address(d), type(uint256).max);
+        vm.expectRevert(Distribution.IncorrectValue.selector);
+        d.fund{ value: 1 ether }();
+        vm.stopPrank();
+    }
+
+    function test_native_executePaysRecipientsDirectly() public {
+        Distribution d = _fundedNative(_payload3(), 6 ether);
+        vm.warp(executeAfter);
+
+        uint256 aliceBefore = alice.balance;
+        uint256 bobBefore = bob.balance;
+        uint256 carolBefore = carol.balance;
+
+        vm.prank(stranger);
+        d.executeChunk(0, _payload3());
+
+        assertEq(alice.balance - aliceBefore, 1 ether);
+        assertEq(bob.balance - bobBefore, 2 ether);
+        assertEq(carol.balance - carolBefore, 3 ether);
+        assertEq(uint8(d.state()), uint8(Distribution.State.Completed));
+    }
+
+    /// @dev A recipient rejecting native MON must not stop the run — same
+    /// isolation guarantee as `test_execute_isolatesFailures` for ERC-20s.
+    function test_native_isolatesRejectingRecipient() public {
+        RevertingReceiver rejector = new RevertingReceiver();
+        bytes memory payload = bytes.concat(
+            _entry(alice, 1 ether), _entry(address(rejector), 2 ether), _entry(carol, 3 ether)
+        );
+        Distribution d = _fundedNative(payload, 6 ether);
+        vm.warp(executeAfter);
+
+        d.executeChunk(0, payload);
+
+        assertEq(alice.balance, 1 ether);
+        assertEq(address(rejector).balance, 0);
+        assertEq(carol.balance, 3 ether, "a rejecting recipient must not stop the run");
+        assertEq(d.failedAmount(), 2 ether);
+        assertEq(d.totalPaid(), 4 ether);
+    }
+
+    /// @dev The gas floor applies identically to native sends: an attacker
+    /// cannot starve `executeChunk` into recording false failures.
+    function test_native_gasGriefingReverts() public {
+        GasBurnerReceiver burner = new GasBurnerReceiver();
+        bytes memory payload =
+            bytes.concat(_entry(alice, 1 ether), _entry(address(burner), 1 ether));
+        Distribution d = _fundedNative(payload, 2 ether);
+        vm.warp(executeAfter);
+
+        vm.prank(stranger);
+        vm.expectRevert();
+        d.executeChunk{ gas: 400_000 }(0, payload);
+
+        assertFalse(d.chunkExecuted(0), "a griefed chunk must remain executable");
+        assertEq(address(d).balance, 2 ether, "no funds moved on a reverted attempt");
+    }
+
+    function test_native_cancelRefundsCreator() public {
+        Distribution d = _fundedNative(_payload3(), 6 ether);
+        uint256 before = creator.balance;
+
+        vm.prank(creator);
+        d.cancel();
+
+        assertEq(creator.balance - before, 6 ether);
+        assertEq(address(d).balance, 0);
+        assertEq(uint8(d.state()), uint8(Distribution.State.Cancelled));
+    }
+
+    function test_native_reclaimSweepsUndeliverable() public {
+        RevertingReceiver rejector = new RevertingReceiver();
+        bytes memory payload =
+            bytes.concat(_entry(alice, 1 ether), _entry(address(rejector), 2 ether));
+        Distribution d = _fundedNative(payload, 3 ether);
+        vm.warp(executeAfter);
+        d.executeChunk(0, payload);
+
+        uint256 before = creator.balance;
+        vm.prank(creator);
+        d.reclaim();
+        assertEq(creator.balance - before, 2 ether, "the rejected share");
+        assertEq(address(d).balance, 0);
+    }
+
+    function test_native_feeSentToTreasury() public {
+        vm.prank(owner);
+        factory.setFee(100, treasury); // 1%
+
+        uint256 before = treasury.balance;
+        Distribution d = _fundedNative(_payload3(), 6.06 ether); // 6 + 1%
+        assertEq(treasury.balance - before, 0.06 ether);
+        assertEq(address(d).balance, 6 ether, "recipients still fully covered");
     }
 }

@@ -38,9 +38,27 @@ import { PayloadLib } from "./PayloadLib.sol";
 /// - **No execution incentive.** Execution is permissionless but unpaid, so
 ///   absent Distro's keeper the realistic executor is the creator. That is a
 ///   safety net, not a keeper ecosystem — do not claim otherwise.
+///
+/// **Decided (2026-07-19): native MON.** `token == address(0)` means this
+/// distribution escrows native MON instead of an ERC-20 — `fund()` takes
+/// `msg.value` instead of pulling, and every payout/refund is a native
+/// `call{value:}` instead of an ERC-20 transfer. One contract, one code path
+/// per branch, rather than a second contract: the state machine, scheduling,
+/// cancellation and reclaim rules are identical either way, and duplicating
+/// them would be exactly the kind of drift PayloadLib's single-encoding
+/// rationale exists to prevent elsewhere in this system.
+///
+/// **Decided (2026-07-19): `schedule()` is its own step.** `executeAfter` used
+/// to be fixed at creation. It is now mutable — by the creator, any time
+/// before the first chunk executes, same gate as `cancel()` — so "create a
+/// distribution" and "decide when it runs" are independent actions, matching
+/// how the product's create flow actually walks a user through this.
 contract Distribution is ReentrancyGuard {
     using SafeERC20 for IERC20;
     using PayloadLib for bytes;
+
+    /// @notice Sentinel for `token` meaning "native MON", never a real ERC-20.
+    address internal constant NATIVE = address(0);
 
     enum State {
         Uninitialized,
@@ -75,7 +93,9 @@ contract Distribution is ReentrancyGuard {
     uint256 public constant RECLAIM_GRACE_PERIOD = 7 days;
 
     address public creator;
-    IERC20 public token;
+    /// @dev `address`, not `IERC20` — must be able to hold `NATIVE` (address(0)),
+    /// which is not a contract. Cast to `IERC20(token)` at each ERC-20 call site.
+    address public token;
     address public factory;
     uint64 public executeAfter;
     uint32 public chunkCount;
@@ -105,6 +125,7 @@ contract Distribution is ReentrancyGuard {
     mapping(uint256 chunkIndex => mapping(uint256 position => bool)) public failed;
 
     event RecipientsCommitted(uint256 indexed chunkIndex, bytes payload);
+    event DistributionScheduled(uint64 executeAfter);
     event Funded(address indexed funder, uint256 amount, uint256 fee);
     event ChunkExecuted(uint256 indexed chunkIndex, address indexed executor);
     event Paid(address indexed recipient, uint256 amount, uint256 chunkIndex, uint256 position);
@@ -130,6 +151,10 @@ contract Distribution is ReentrancyGuard {
     error NotFailed(uint256 position);
     error AlreadyReclaimed();
     error NothingToReclaim();
+    /// @notice `fund()` was sent the wrong `msg.value` for this distribution's token.
+    error IncorrectValue();
+    /// @notice A native-MON send to `treasury`/`creator` reverted.
+    error NativeTransferFailed();
 
     /// @notice Initialize a clone. Callable once, by the factory.
     /// @dev Clones have no constructor, hence this. `state` doubles as the
@@ -144,13 +169,29 @@ contract Distribution is ReentrancyGuard {
     ) external {
         if (state != State.Uninitialized) revert AlreadyInitialized();
         creator = creator_;
-        token = IERC20(token_);
+        token = token_;
         factory = msg.sender;
         executeAfter = executeAfter_;
         chunkCount = chunkCount_;
         feeBps = feeBps_;
         treasury = treasury_;
         state = State.Draft;
+    }
+
+    /// @notice Set (or change) when this distribution becomes executable.
+    /// @dev Decoupled from creation: `createDistribution` no longer has to
+    /// know the schedule. `0` means "no restriction — executable immediately",
+    /// which is also what a freshly created distribution defaults to unless
+    /// this is called. Same gate as `cancel()` (creator only, before any chunk
+    /// has executed) — once execution has begun, the schedule that got you
+    /// there is no longer something you get to move.
+    function schedule(uint64 executeAfter_) external {
+        if (msg.sender != creator) revert NotCreator();
+        if (state == State.Cancelled || state == State.Completed) revert WrongState();
+        if (executedCount != 0) revert WrongState();
+
+        executeAfter = executeAfter_;
+        emit DistributionScheduled(executeAfter_);
     }
 
     /// @notice Commit one chunk's recipients, emitting them onchain.
@@ -187,20 +228,34 @@ contract Distribution is ReentrancyGuard {
     /// @notice Escrow the funds. Permissionless — a treasury multisig may fund a
     /// distribution it did not create — and decoupled from creation, so the
     /// creator chooses their own lock-up window (ARCHITECTURE_REVIEW H3).
-    function fund() external nonReentrant {
+    /// @dev `payable` unconditionally: an ERC-20 funding call must carry zero
+    /// `msg.value` (checked below), so this never silently accepts stray MON
+    /// alongside an ERC-20 pull.
+    function fund() external payable nonReentrant {
         if (state != State.Ready) revert WrongState();
 
         uint256 fee = (totalAmount * feeBps) / 10_000;
         uint256 required = totalAmount + fee;
 
-        uint256 before = token.balanceOf(address(this));
-        token.safeTransferFrom(msg.sender, address(this), required);
-        // Rejects fee-on-transfer and rebasing tokens outright. The alternative
-        // is silently shorting whoever sorts last.
-        if (token.balanceOf(address(this)) - before != required) revert UnsupportedToken();
+        if (token == NATIVE) {
+            // The whole point of native funding: msg.value IS the escrow, so
+            // there is no before/after balance dance and no fee-on-transfer
+            // risk to guard against — it either arrives exactly or the call
+            // itself reverts.
+            if (msg.value != required) revert IncorrectValue();
+        } else {
+            if (msg.value != 0) revert IncorrectValue();
+            uint256 before = IERC20(token).balanceOf(address(this));
+            IERC20(token).safeTransferFrom(msg.sender, address(this), required);
+            // Rejects fee-on-transfer and rebasing tokens outright. The
+            // alternative is silently shorting whoever sorts last.
+            if (IERC20(token).balanceOf(address(this)) - before != required) {
+                revert UnsupportedToken();
+            }
+        }
 
         state = State.Funded;
-        if (fee > 0) token.safeTransfer(treasury, fee);
+        if (fee > 0) _sendOut(treasury, fee);
 
         emit Funded(msg.sender, totalAmount, fee);
     }
@@ -298,8 +353,8 @@ contract Distribution is ReentrancyGuard {
         if (executedCount != 0) revert WrongState();
 
         state = State.Cancelled;
-        uint256 balance = token.balanceOf(address(this));
-        if (balance > 0) token.safeTransfer(creator, balance);
+        uint256 balance = _selfBalance();
+        if (balance > 0) _sendOut(creator, balance);
 
         emit Cancelled(balance);
     }
@@ -317,13 +372,13 @@ contract Distribution is ReentrancyGuard {
             && (state == State.Funded || state == State.Executing);
         if (!completed && !stranded) revert WrongState();
 
-        uint256 balance = token.balanceOf(address(this));
+        uint256 balance = _selfBalance();
         if (balance == 0) revert NothingToReclaim();
 
         reclaimed = true;
         // Blocks any further execution — the funds are gone.
         state = State.Completed;
-        token.safeTransfer(creator, balance);
+        _sendOut(creator, balance);
 
         emit Reclaimed(balance);
     }
@@ -337,12 +392,40 @@ contract Distribution is ReentrancyGuard {
     /// external call, which would mean exposing a self-callable transfer helper
     /// — a function that, if its caller guard were ever wrong, drains the whole
     /// escrow. This avoids that surface entirely.
+    ///
+    /// For native MON (`token == NATIVE`), "the transfer" is a plain value
+    /// call with empty calldata — same tolerant, non-reverting shape: a
+    /// recipient whose `receive()`/`fallback()` reverts is isolated exactly
+    /// like a blocklisted ERC-20 recipient, not allowed to poison the batch.
     function _tryTransfer(address to, uint256 amount) private returns (bool) {
-        (bool ok, bytes memory ret) =
-            address(token).call(abi.encodeCall(IERC20.transfer, (to, amount)));
+        if (token == NATIVE) {
+            (bool sent,) = to.call{ value: amount }("");
+            return sent;
+        }
+        (bool ok, bytes memory ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount)));
         if (!ok) return false;
         if (ret.length == 0) return true;
         if (ret.length == 32) return abi.decode(ret, (bool));
         return false;
+    }
+
+    /// @dev This contract's stake in the distribution's token — native balance
+    /// or ERC-20 balance, whichever `token` names.
+    function _selfBalance() private view returns (uint256) {
+        return token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
+    }
+
+    /// @dev An unconditional send — reverts on failure, unlike `_tryTransfer`.
+    /// Used only for moves to `treasury`/`creator` (fee, cancel refund,
+    /// reclaim refund): those are whole-balance moves where a silent failure
+    /// would strand funds with no isolation benefit to gain, unlike a single
+    /// recipient among many in `executeChunk`/`retry`.
+    function _sendOut(address to, uint256 amount) private {
+        if (token == NATIVE) {
+            (bool ok,) = to.call{ value: amount }("");
+            if (!ok) revert NativeTransferFailed();
+        } else {
+            IERC20(token).safeTransfer(to, amount);
+        }
     }
 }

@@ -24,7 +24,16 @@ export interface UseTokenInfoResult {
   error?: string;
 }
 
-export function useTokenInfo(ref: TokenRef | undefined): UseTokenInfoResult {
+/**
+ * `mode` decides whether native MON can resolve as distributable. `Multisend`
+ * ("immediate") has no native path — MON only resolves for the escrow
+ * ("scheduled") path, where `fund()` takes native value directly. ERC-20s are
+ * distributable either way, so `mode` only changes the native branch.
+ */
+export function useTokenInfo(
+  ref: TokenRef | undefined,
+  mode: "immediate" | "scheduled" = "immediate",
+): UseTokenInfoResult {
   const chainId = useChainId();
   const isNative = ref === NATIVE_SENTINEL;
   const address = !isNative && ref && isAddress(ref) ? (ref as `0x${string}`) : undefined;
@@ -45,6 +54,7 @@ export function useTokenInfo(ref: TokenRef | undefined): UseTokenInfoResult {
     // Native MON: metadata comes from the chain definition, not a contract.
     if (isNative) {
       const entry = findRegistryToken(chainId, NATIVE_SENTINEL);
+      const distributable = mode === "scheduled";
       return {
         isLoading: false,
         token: {
@@ -52,8 +62,8 @@ export function useTokenInfo(ref: TokenRef | undefined): UseTokenInfoResult {
           symbol: monadMainnet.nativeCurrency.symbol,
           decimals: monadMainnet.nativeCurrency.decimals,
           isNative: true,
-          distributable: false,
-          unsupportedReason: entry?.unsupportedReason,
+          distributable,
+          unsupportedReason: distributable ? undefined : entry?.unsupportedReason,
         },
       };
     }
@@ -94,5 +104,5 @@ export function useTokenInfo(ref: TokenRef | undefined): UseTokenInfoResult {
         distributable: true,
       },
     };
-  }, [ref, isNative, address, chainId, data, isLoading, isError]);
+  }, [ref, isNative, address, chainId, data, isLoading, isError, mode]);
 }
