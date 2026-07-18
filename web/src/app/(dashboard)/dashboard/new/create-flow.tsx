@@ -14,6 +14,7 @@ import {
   isDistributionFactoryDeployed,
 } from "@/config/contracts";
 import { ExecutePanel } from "@/components/distributions/execute-panel";
+import { ScheduledExecutePanel } from "@/components/distributions/scheduled-execute-panel";
 import { SchedulePicker } from "@/components/distributions/schedule-picker";
 import { formatAmount } from "@/lib/recipients/format";
 import type { TokenRef, TokenSelection } from "@/lib/tokens/types";
@@ -55,6 +56,7 @@ export function CreateFlow() {
   const [recipientsOk, setRecipientsOk] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [escrowSalt, setEscrowSalt] = useState<`0x${string}` | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
   // Two distinct failure modes, kept in separate state: loading the starting
@@ -107,13 +109,17 @@ export function CreateFlow() {
     [],
   );
 
-  const tokenReady = token !== undefined && token.distributable && token.address !== undefined;
+  // Native MON (address undefined) is only ever `distributable` in scheduled
+  // mode (see useTokenInfo), so this doesn't need its own mode check here.
+  const tokenReady =
+    token !== undefined && token.distributable && (token.address !== undefined || token.isNative);
   const canLeaveDetails = name.trim() !== "" && tokenReady;
   const canLeaveRecipients = canLeaveDetails && recipients.length > 0 && recipientsOk;
   const canReview = canLeaveRecipients && scheduleValid;
 
   async function onConfirm() {
-    if (!token?.address) return;
+    if (!token || (!token.address && !token.isNative)) return;
+    const scheduled = schedule.mode === "scheduled";
     setSaving(true);
     setError(null);
     try {
@@ -124,22 +130,32 @@ export function CreateFlow() {
         body: JSON.stringify({
           name: name.trim(),
           chainId: chainId!,
-          tokenAddress: token.address,
+          // Native MON has no ERC-20 address; the escrow's own address(0)
+          // sentinel is what the scheduled path actually needs on-chain, but
+          // the DB column stores a real value for the immediate/ERC-20 case
+          // only — token.address is always present for ERC-20.
+          tokenAddress: token.address ?? "0x0000000000000000000000000000000000000000",
           tokenSymbol: token.symbol,
           tokenDecimals: token.decimals,
-          multisendAddress: getMultisendAddress(chainId!),
+          multisendAddress: scheduled ? undefined : getMultisendAddress(chainId!),
           recipients: recipients.map((r) => ({
             address: r.address,
             amount: r.amount.toString(),
           })),
+          kind: scheduled ? "scheduled" : "immediate",
+          executeAfter: scheduled ? (schedule.executeAt ?? 0) : undefined,
         }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "Could not save the distribution.");
       }
-      const { id } = (await res.json()) as { id: string };
+      const { id, salt: savedSalt } = (await res.json()) as {
+        id: string;
+        salt: `0x${string}` | null;
+      };
       setSavedId(id);
+      setEscrowSalt(savedSalt);
       setSaving(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -290,12 +306,23 @@ export function CreateFlow() {
                   Draft saved. This step moves real tokens and cannot be undone.
                 </p>
               </div>
-              <ExecutePanel
-                distributionId={savedId}
-                token={token}
-                recipients={recipients}
-                onComplete={() => router.push(`/dashboard/${savedId}`)}
-              />
+              {schedule.mode === "scheduled" && escrowSalt ? (
+                <ScheduledExecutePanel
+                  distributionId={savedId}
+                  token={token}
+                  recipients={recipients}
+                  executeAfter={schedule.executeAt ?? 0}
+                  salt={escrowSalt}
+                  onComplete={() => router.push(`/dashboard/${savedId}`)}
+                />
+              ) : (
+                <ExecutePanel
+                  distributionId={savedId}
+                  token={token}
+                  recipients={recipients}
+                  onComplete={() => router.push(`/dashboard/${savedId}`)}
+                />
+              )}
               <button
                 onClick={() => router.push(`/dashboard/${savedId}`)}
                 className="self-start text-sm text-muted-foreground hover:text-foreground"

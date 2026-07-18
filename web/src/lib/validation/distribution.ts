@@ -36,20 +36,32 @@ export const recipientInputSchema = z.object({
   amount: amountSchema,
 });
 
-export const createDistributionSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100),
-  chainId: z.number().int().positive(),
-  tokenAddress: addressSchema,
-  tokenSymbol: z.string().trim().min(1).max(32),
-  tokenDecimals: z.number().int().min(0).max(36),
-  multisendAddress: addressSchema,
-  recipients: z
-    .array(recipientInputSchema)
-    .min(1, "At least one recipient is required")
-    // Guards the request body and the Merkle-free payload path against a
-    // resource-exhaustion post; real lists are chunked client-side well below.
-    .max(10_000, "Too many recipients in a single request"),
-});
+export const createDistributionSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(100),
+    chainId: z.number().int().positive(),
+    tokenAddress: addressSchema,
+    tokenSymbol: z.string().trim().min(1).max(32),
+    tokenDecimals: z.number().int().min(0).max(36),
+    /** Required for `kind: "immediate"` only — a scheduled row never talks to
+     * Multisend, so `distributions.multisend_address` stays null for it. */
+    multisendAddress: addressSchema.optional(),
+    recipients: z
+      .array(recipientInputSchema)
+      .min(1, "At least one recipient is required")
+      // Guards the request body and the Merkle-free payload path against a
+      // resource-exhaustion post; real lists are chunked client-side well below.
+      .max(10_000, "Too many recipients in a single request"),
+    /** Tier-1 (immediate, Multisend) unless a schedule is present. */
+    kind: z.enum(["immediate", "scheduled"]).default("immediate"),
+    /** Unix seconds. Only meaningful when `kind` is "scheduled"; 0 means "no
+     * restriction, executable as soon as funded". */
+    executeAfter: z.number().int().min(0).optional(),
+  })
+  .refine((v) => v.kind !== "immediate" || v.multisendAddress !== undefined, {
+    message: "multisendAddress is required for an immediate distribution",
+    path: ["multisendAddress"],
+  });
 
 export type CreateDistributionInput = z.infer<typeof createDistributionSchema>;
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
@@ -54,6 +55,13 @@ export async function POST(request: Request) {
   // Authoritative — the client's total is never trusted.
   const total = computeTotal(input.recipients);
 
+  // Server-generated, never client-supplied: the on-chain `createDistribution`
+  // salt is returned to the caller so their transaction uses the exact value
+  // this row expects — trusting a client-chosen salt would let a caller target
+  // a collision, however implausible, with someone else's pending escrow.
+  const salt: `0x${string}` | null =
+    input.kind === "scheduled" ? `0x${randomBytes(32).toString("hex")}` : null;
+
   const supabase = createServiceRoleClient();
 
   const { data: dist, error: distError } = await supabase
@@ -61,7 +69,7 @@ export async function POST(request: Request) {
     .insert({
       user_id: userId,
       chain_id: input.chainId,
-      multisend_address: input.multisendAddress,
+      multisend_address: input.kind === "immediate" ? input.multisendAddress : null,
       name: input.name,
       token_address: input.tokenAddress,
       token_symbol: input.tokenSymbol,
@@ -69,6 +77,12 @@ export async function POST(request: Request) {
       total_amount: total.toString(),
       recipient_count: input.recipients.length,
       status: "draft",
+      kind: input.kind,
+      execute_after:
+        input.kind === "scheduled" && input.executeAfter
+          ? new Date(input.executeAfter * 1000).toISOString()
+          : null,
+      salt,
     })
     .select("id")
     .single();
@@ -101,7 +115,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not save recipients." }, { status: 500 });
   }
 
-  return NextResponse.json({ id: dist.id }, { status: 201 });
+  return NextResponse.json({ id: dist.id, salt }, { status: 201 });
 }
 
 export const dynamic = "force-dynamic";
