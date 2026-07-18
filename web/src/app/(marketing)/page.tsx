@@ -15,21 +15,23 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/auth/connect-wallet-button";
-import { DistroMark } from "@/components/brand/distro-mark";
+import { Reveal, RevealGroup, RevealItem } from "@/components/motion/reveal";
+import { HoverCard } from "@/components/ui/card";
 import { SignedInRedirectNotice } from "./signed-in-redirect-notice";
 
 /**
- * Distro landing page.
+ * Distro landing page — DESIGN.md v3.
  *
- * Brand register (DESIGN.md v2): this is the one surface where design IS the
- * product. White-dominant with soft lavender sections and a single enterprise
- * violet for brand + interaction; Geist; functional green/amber/red reserved
- * for payment meaning — reads like Stripe/Linear/Mercury/Vercel, not a
- * token-launch site.
+ * Every section carries its own surface identity (§7): no repeating white
+ * blocks. White -> lavender -> gradient-mesh -> glass, in sequence. This is
+ * the one surface where the brand is expressive (huge headlines, floating
+ * cards, motion) — the authenticated dashboard stays flatter and denser by
+ * design, per the same spec.
  *
- * Integrity constraints, deliberate: no fabricated trust (no fake logos,
- * testimonials, or user counts), and no audit claim, because Distro is not
- * audited. The honest architectural guarantees carry the security story.
+ * Integrity constraints carried over from v2, unchanged by the redesign: no
+ * fabricated trust (no fake logos, testimonials, or user counts), and no
+ * audit claim, because Distro is not audited. The honest architectural
+ * guarantees carry the security story.
  */
 export default async function MarketingPage({
   searchParams,
@@ -66,49 +68,67 @@ export default async function MarketingPage({
 }
 
 /* ------------------------------------------------------------------ Hero */
+/* Soft purple gradient wash + a floating product card, the heaviest shadow
+   in the system, with subtle parallax on the background blobs. */
 
 function Hero() {
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto grid w-full max-w-5xl gap-12 px-6 py-20 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-28">
-        <div className="flex flex-col gap-6">
-          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
-            <span className="size-1.5 rounded-full bg-success" />
-            Onchain distribution engine · Monad
-          </p>
-          <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-            Pay hundreds of wallets in one workflow.
-          </h1>
-          <p className="max-w-md text-lg text-pretty text-muted-foreground">
-            Payroll, rewards, grants, and payouts — import recipients, review once, and Distro sends
-            to everyone onchain. No scripts. No spreadsheets. No custody.
-          </p>
-          <div className="flex flex-wrap items-center gap-4 pt-2">
-            <ConnectWalletButton />
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-muted-foreground"
-            >
-              Open the dashboard
-              <ArrowRight className="size-4" />
-            </Link>
+    <section
+      className="relative overflow-hidden"
+      style={{ backgroundImage: "var(--gradient-wash)" }}
+    >
+      <HeroBlobs />
+      <div className="relative mx-auto grid w-full max-w-6xl gap-16 px-6 py-24 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-36">
+        <Reveal duration={0.7}>
+          <div className="flex flex-col gap-7">
+            <p className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background/80 px-4 py-1.5 text-xs font-medium text-charcoal-muted backdrop-blur-sm">
+              <span className="size-1.5 rounded-full bg-success" />
+              Onchain distribution engine · Monad
+            </p>
+            <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl lg:text-[4.5rem]">
+              Pay hundreds of wallets in one workflow.
+            </h1>
+            <p className="max-w-md text-lg text-pretty text-charcoal-muted">
+              Payroll, rewards, grants, and payouts — import recipients, review once, and Distro
+              sends to everyone onchain. No scripts. No spreadsheets. No custody.
+            </p>
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+              <ConnectWalletButton />
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary-text"
+              >
+                Open the dashboard
+                <ArrowRight className="size-4" />
+              </Link>
+            </div>
+            <p className="text-xs text-charcoal-muted">
+              Non-custodial · Verifiable onchain · Open source
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Non-custodial · Verifiable onchain · Open source
-          </p>
-        </div>
+        </Reveal>
 
-        <HeroVisual />
+        <Reveal duration={0.7} delay={0.15} rise={24}>
+          <HeroVisual />
+        </Reveal>
       </div>
     </section>
   );
 }
 
-/**
- * The hero visual is a real Distro artifact — a distribution mid-flight —
- * rather than a decorative graphic. Every element here is the design system's
- * signature: mono addresses, tabular amounts, functional status colour.
- */
+/** Soft, slow-drifting gradient blobs behind the hero content — the only
+ * place parallax lives; everything else is a static wash. */
+function HeroBlobs() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+      <div className="absolute -top-24 -left-24 size-[28rem] rounded-full bg-primary/10 blur-3xl" />
+      <div className="absolute top-1/3 -right-32 size-[24rem] rounded-full bg-brand-secondary/12 blur-3xl" />
+    </div>
+  );
+}
+
+/** A real Distro artifact — a distribution mid-flight — rather than a
+ * decorative graphic. The heaviest shadow in the system (§4 `shadow-lg`). */
 function HeroVisual() {
   const rows = [
     { addr: "0x1a2b…9f3c", amt: "1,200.00", state: "paid" as const },
@@ -118,14 +138,17 @@ function HeroVisual() {
     { addr: "0xb2e1…c7d8", amt: "950.00", state: "pending" as const },
   ];
   return (
-    <div className="rounded-xl border border-border bg-surface p-1 shadow-sm">
+    <div
+      className="rounded-xl border border-border bg-background/90 p-1.5 backdrop-blur-sm"
+      style={{ boxShadow: "var(--shadow-lg)" }}
+    >
       <div className="rounded-lg bg-background">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <p className="text-sm font-medium">March payroll</p>
-            <p className="font-mono text-xs text-muted-foreground">USDC · 240 recipients</p>
+            <p className="font-mono text-xs text-charcoal-muted">USDC · 240 recipients</p>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-info/30 bg-info-surface px-2 py-0.5 text-xs text-info">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-light-purple px-2.5 py-1 text-xs text-primary-text">
             <Clock className="size-3" />
             Sending
           </span>
@@ -134,19 +157,19 @@ function HeroVisual() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.addr} className="border-b border-border last:border-0">
-                <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{r.addr}</td>
-                <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums">{r.amt}</td>
-                <td className="px-4 py-2.5 text-right">
+                <td className="px-5 py-3 font-mono text-xs text-charcoal-muted">{r.addr}</td>
+                <td className="px-5 py-3 text-right font-mono text-xs tabular-nums">{r.amt}</td>
+                <td className="px-5 py-3 text-right">
                   <StatePill state={r.state} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="flex items-center justify-between px-4 py-3 font-mono text-xs">
+        <div className="flex items-center justify-between px-5 py-4 font-mono text-xs">
           <span className="text-success">236 paid</span>
           <span className="text-warning">4 failed</span>
-          <span className="text-muted-foreground">verifiable onchain ↗</span>
+          <span className="text-charcoal-muted">verifiable onchain ↗</span>
         </div>
       </div>
     </div>
@@ -167,13 +190,14 @@ function StatePill({ state }: { state: "paid" | "failed" | "pending" }) {
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+    <span className="inline-flex items-center gap-1 text-xs text-charcoal-muted">
       <Clock className="size-3" /> Pending
     </span>
   );
 }
 
 /* --------------------------------------------------------------- Problem */
+/* Light lavender flat — quiet, editorial, no card chrome. */
 
 function Problem() {
   const pains = [
@@ -185,41 +209,47 @@ function Problem() {
     "Chase and retry the failures yourself",
   ];
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto w-full max-w-5xl px-6 py-20">
-        <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-          Blockchain made transfers permissionless. It never made distribution efficient.
-        </h2>
-        <p className="mt-4 max-w-2xl text-muted-foreground">
-          Paying a team, a cohort, or a community onchain still means doing the same thing by hand,
-          dozens or hundreds of times. It gets slower and more error-prone with every recipient.
-        </p>
-        <ul className="mt-10 grid gap-x-10 gap-y-3 sm:grid-cols-2">
+    <section className="bg-light-purple">
+      <div className="mx-auto w-full max-w-4xl px-6 py-24 lg:py-32">
+        <Reveal>
+          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+            Blockchain made transfers permissionless. It never made distribution efficient.
+          </h2>
+          <p className="mt-5 max-w-xl text-lg text-pretty text-charcoal-muted">
+            Paying a team, a cohort, or a community onchain still means doing the same thing by
+            hand, dozens or hundreds of times. It gets slower and more error-prone with every
+            recipient.
+          </p>
+        </Reveal>
+        <RevealGroup className="mt-12 grid gap-x-10 gap-y-4 sm:grid-cols-2">
           {pains.map((p) => (
-            <li key={p} className="flex items-center gap-3 text-sm text-muted-foreground">
-              <X className="size-4 shrink-0 text-muted-foreground/60" />
+            <RevealItem key={p} className="flex items-center gap-3 text-sm text-charcoal-muted">
+              <X className="size-4 shrink-0 text-charcoal-muted/60" />
               <span className="line-through decoration-border">{p}</span>
-            </li>
+            </RevealItem>
           ))}
-        </ul>
+        </RevealGroup>
       </div>
     </section>
   );
 }
 
 /* -------------------------------------------------------------- Solution */
+/* Plain white — after two tinted sections, this reads as the reset. */
 
 function Solution() {
   return (
-    <section className="border-b border-border bg-surface">
-      <div className="mx-auto w-full max-w-3xl px-6 py-24 text-center">
-        <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          One distribution. Every recipient. Sent onchain, tracked to the last payment.
-        </h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-pretty text-muted-foreground">
-          Distro turns a repetitive, manual chore into a single workflow: create, import, review,
-          approve. It executes the transfers and shows you exactly what happened.
-        </p>
+    <section className="bg-background">
+      <div className="mx-auto w-full max-w-3xl px-6 py-28 text-center">
+        <Reveal>
+          <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+            One distribution. Every recipient. Sent onchain, tracked to the last payment.
+          </h2>
+          <p className="mx-auto mt-6 max-w-xl text-lg text-pretty text-charcoal-muted">
+            Distro turns a repetitive, manual chore into a single workflow: create, import, review,
+            approve. It executes the transfers and shows you exactly what happened.
+          </p>
+        </Reveal>
       </div>
     </section>
   );
@@ -246,29 +276,32 @@ function HowItWorks() {
     },
   ];
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto w-full max-w-5xl px-6 py-20">
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">How it works</h2>
-        <div className="mt-12 grid gap-10 sm:grid-cols-3">
+    <section className="bg-background">
+      <div className="mx-auto w-full max-w-5xl px-6 py-24">
+        <Reveal>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">How it works</h2>
+        </Reveal>
+        <RevealGroup className="mt-14 grid gap-12 sm:grid-cols-3">
           {steps.map((s, i) => (
-            <div key={s.title} className="flex flex-col gap-4">
+            <RevealItem key={s.title} className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
-                <span className="flex size-8 items-center justify-center rounded-lg border border-border font-mono text-sm text-muted-foreground">
+                <span className="flex size-9 items-center justify-center rounded-md bg-light-purple font-mono text-sm text-primary-text">
                   {i + 1}
                 </span>
-                <s.icon className="size-5 text-foreground" />
+                <s.icon className="size-5 text-primary" />
               </div>
-              <h3 className="font-medium">{s.title}</h3>
-              <p className="text-sm text-muted-foreground">{s.body}</p>
-            </div>
+              <h3 className="text-lg font-medium">{s.title}</h3>
+              <p className="text-sm text-charcoal-muted">{s.body}</p>
+            </RevealItem>
           ))}
-        </div>
+        </RevealGroup>
       </div>
     </section>
   );
 }
 
 /* -------------------------------------------------------------- Features */
+/* Gradient mesh — the brand's signature moment. Floating cards on top. */
 
 function Features() {
   const pillars = [
@@ -294,65 +327,81 @@ function Features() {
     },
   ];
   return (
-    <section className="border-b border-border bg-surface">
-      <div className="mx-auto w-full max-w-5xl px-6 py-20">
-        <h2 className="max-w-xl text-2xl font-semibold tracking-tight sm:text-3xl">
-          Four things Distro does, and does precisely.
-        </h2>
-        <div className="mt-12 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2">
+    <section style={{ backgroundImage: "var(--gradient-mesh)" }}>
+      <div className="mx-auto w-full max-w-5xl px-6 py-28">
+        <Reveal>
+          <h2 className="max-w-xl text-3xl font-semibold tracking-tight sm:text-4xl">
+            Four things Distro does, and does precisely.
+          </h2>
+        </Reveal>
+        <RevealGroup className="mt-14 grid gap-6 sm:grid-cols-2">
           {pillars.map((p) => (
-            <div key={p.title} className="flex flex-col gap-3 bg-background p-6">
-              <p.icon className="size-5 text-foreground" />
-              <h3 className="font-medium">{p.title}</h3>
-              <p className="text-sm text-muted-foreground">{p.body}</p>
-            </div>
+            <RevealItem key={p.title}>
+              <HoverCard className="flex h-full flex-col gap-4 p-7">
+                <span className="flex size-11 items-center justify-center rounded-md bg-light-purple">
+                  <p.icon className="size-5 text-primary" />
+                </span>
+                <h3 className="text-lg font-medium">{p.title}</h3>
+                <p className="text-sm text-charcoal-muted">{p.body}</p>
+              </HoverCard>
+            </RevealItem>
           ))}
-        </div>
+        </RevealGroup>
       </div>
     </section>
   );
 }
 
 /* ------------------------------------------------------------- Templates */
+/* Glass cards — the one sanctioned glassmorphism surface, over a lavender
+   backdrop. Never used on the authenticated dashboard. */
 
 function Templates() {
+  const templates = [
+    ["Monthly payroll", "240 recipients"],
+    ["Core contributors", "18 recipients"],
+    ["Grant cohort · Q1", "12 recipients"],
+  ];
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto grid w-full max-w-5xl gap-12 px-6 py-20 lg:grid-cols-2 lg:items-center">
-        <div className="flex flex-col gap-5">
-          <FileText className="size-6 text-foreground" />
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Save a distribution. Run it again next month.
-          </h2>
-          <p className="max-w-md text-muted-foreground">
-            Templates keep your recipient lists — a payroll roster, a contributor cohort, a grant
-            round — so recurring payouts take seconds. Using a template always goes through the full
-            review and approval, so a saved list can never pay anyone on its own.
-          </p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-1">
-          <div className="rounded-lg bg-background">
-            {[
-              ["Monthly payroll", "240 recipients"],
-              ["Core contributors", "18 recipients"],
-              ["Grant cohort · Q1", "12 recipients"],
-            ].map(([name, count], i, a) => (
+    <section className="bg-light-purple">
+      <div className="mx-auto grid w-full max-w-5xl gap-14 px-6 py-28 lg:grid-cols-2 lg:items-center">
+        <Reveal>
+          <div className="flex flex-col gap-5">
+            <FileText className="size-6 text-primary" />
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              Save a distribution. Run it again next month.
+            </h2>
+            <p className="max-w-md text-charcoal-muted">
+              Templates keep your recipient lists — a payroll roster, a contributor cohort, a grant
+              round — so recurring payouts take seconds. Using a template always goes through the
+              full review and approval, so a saved list can never pay anyone on its own.
+            </p>
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.1} rise={24}>
+          <div className="flex flex-col gap-4">
+            {templates.map(([name, count]) => (
               <div
                 key={name}
-                className={`flex items-center justify-between px-4 py-3.5 ${i < a.length - 1 ? "border-b border-border" : ""}`}
+                className="rounded-lg border border-primary/15 bg-white/60 px-5 py-4 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5"
+                style={{ boxShadow: "var(--shadow-sm)" }}
               >
-                <span className="text-sm font-medium">{name}</span>
-                <span className="font-mono text-xs text-muted-foreground">{count}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{name}</span>
+                  <span className="font-mono text-xs text-charcoal-muted">{count}</span>
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
 /* ------------------------------------------------------------- Use cases */
+/* White — a palette-cleanser after Templates' visual weight. */
 
 function UseCases() {
   const cases = [
@@ -368,29 +417,31 @@ function UseCases() {
     "DAO contributor comp",
   ];
   return (
-    <section className="border-b border-border bg-surface">
-      <div className="mx-auto w-full max-w-5xl px-6 py-20">
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Built for</h2>
-        <p className="mt-4 max-w-2xl text-muted-foreground">
-          Anywhere the recipients are known and the payments need to actually arrive — Web3 teams,
-          DAOs, grant programs, NFT projects, and creator communities.
-        </p>
-        <div className="mt-10 flex flex-wrap gap-2.5">
+    <section className="bg-background">
+      <div className="mx-auto w-full max-w-5xl px-6 py-24">
+        <Reveal>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Built for</h2>
+          <p className="mt-4 max-w-2xl text-charcoal-muted">
+            Anywhere the recipients are known and the payments need to actually arrive — Web3 teams,
+            DAOs, grant programs, NFT projects, and creator communities.
+          </p>
+        </Reveal>
+        <RevealGroup className="mt-10 flex flex-wrap gap-3">
           {cases.map((c) => (
-            <span
-              key={c}
-              className="rounded-lg border border-border bg-background px-3.5 py-2 text-sm"
-            >
-              {c}
-            </span>
+            <RevealItem key={c}>
+              <span className="inline-block rounded-full border border-border bg-background px-4 py-2.5 text-sm shadow-xs">
+                {c}
+              </span>
+            </RevealItem>
           ))}
-        </div>
+        </RevealGroup>
       </div>
     </section>
   );
 }
 
 /* ------------------------------------------------------------- Why Monad */
+/* Editorial — an asymmetric, magazine-style layout, not a 3-card grid. */
 
 function WhyMonad() {
   const points = [
@@ -408,21 +459,21 @@ function WhyMonad() {
     },
   ];
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto w-full max-w-5xl px-6 py-20">
-        <h2 className="max-w-xl text-2xl font-semibold tracking-tight sm:text-3xl">
-          Why Distro is built on Monad
-        </h2>
-        <p className="mt-4 max-w-2xl text-muted-foreground">
-          Large-scale distribution demands speed, low cost, and throughput. Monad provides all three
-          without compromising the experience.
-        </p>
-        <div className="mt-12 grid gap-8 sm:grid-cols-3">
-          {points.map((p) => (
-            <div key={p.k} className="flex flex-col gap-2 border-t border-border pt-5">
-              <h3 className="font-medium">{p.k}</h3>
-              <p className="text-sm text-muted-foreground">{p.v}</p>
-            </div>
+    <section className="bg-background">
+      <div className="mx-auto grid w-full max-w-5xl gap-16 px-6 py-28 lg:grid-cols-[1fr_1.2fr]">
+        <Reveal>
+          <h2 className="text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
+            Why Distro is built on Monad
+          </h2>
+        </Reveal>
+        <div className="flex flex-col gap-10">
+          {points.map((p, i) => (
+            <Reveal key={p.k} delay={i * 0.08}>
+              <div className="border-l-2 border-primary/25 pl-6">
+                <p className="text-xl font-medium text-pretty">{p.k}</p>
+                <p className="mt-2 text-charcoal-muted">{p.v}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </div>
@@ -431,6 +482,8 @@ function WhyMonad() {
 }
 
 /* -------------------------------------------------------------- Security */
+/* Soft purple flat — calmer than a gradient, since this section carries
+   trust claims and needs to read as restrained rather than dramatic. */
 
 function Security() {
   const guarantees = [
@@ -451,28 +504,30 @@ function Security() {
     },
   ];
   return (
-    <section className="border-b border-border bg-surface">
-      <div className="mx-auto w-full max-w-5xl px-6 py-20">
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Security</h2>
-        <p className="mt-4 max-w-2xl text-muted-foreground">
-          Distro moves real money, so the guarantees are architectural, not promises. It is not a
-          wallet, an exchange, or a custodian.
-        </p>
-        <div className="mt-12 grid gap-8 sm:grid-cols-3">
+    <section className="bg-light-purple">
+      <div className="mx-auto w-full max-w-5xl px-6 py-28">
+        <Reveal>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Security</h2>
+          <p className="mt-4 max-w-2xl text-charcoal-muted">
+            Distro moves real money, so the guarantees are architectural, not promises. It is not a
+            wallet, an exchange, or a custodian.
+          </p>
+        </Reveal>
+        <RevealGroup className="mt-14 grid gap-8 sm:grid-cols-3">
           {guarantees.map((g) => (
-            <div key={g.title} className="flex flex-col gap-3">
-              <g.icon className="size-5 text-foreground" />
+            <RevealItem key={g.title} className="flex flex-col gap-3">
+              <g.icon className="size-5 text-primary" />
               <h3 className="font-medium">{g.title}</h3>
-              <p className="text-sm text-muted-foreground">{g.body}</p>
-            </div>
+              <p className="text-sm text-charcoal-muted">{g.body}</p>
+            </RevealItem>
           ))}
-        </div>
-        <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-6 text-sm">
+        </RevealGroup>
+        <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-primary/15 pt-6 text-sm">
           <a
             href="https://monadscan.com/address/0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 font-mono text-xs text-info hover:underline"
+            className="inline-flex items-center gap-1.5 font-mono text-xs text-primary-text hover:underline"
           >
             Contract 0xd9C7…4538 <ExternalLink className="size-3" />
           </a>
@@ -480,11 +535,11 @@ function Security() {
             href="https://github.com/tweetbysobur/distro"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-charcoal-muted hover:text-foreground"
           >
             Open source <ExternalLink className="size-3" />
           </a>
-          <span className="text-muted-foreground">
+          <span className="text-charcoal-muted">
             Independent audit pending before mainnet launch.
           </span>
         </div>
@@ -523,19 +578,19 @@ function Faq() {
     },
   ];
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto w-full max-w-3xl px-6 py-20">
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Questions</h2>
-        <div className="mt-10 divide-y divide-border border-y border-border">
+    <section className="bg-background">
+      <div className="mx-auto w-full max-w-3xl px-6 py-28">
+        <Reveal>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Questions</h2>
+        </Reveal>
+        <div className="mt-12 divide-y divide-border border-y border-border">
           {items.map((it) => (
-            <details key={it.q} className="group py-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium">
+            <details key={it.q} className="group py-5">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-medium">
                 {it.q}
-                <span className="text-muted-foreground transition-transform group-open:rotate-45">
-                  +
-                </span>
+                <span className="text-primary transition-transform group-open:rotate-45">+</span>
               </summary>
-              <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{it.a}</p>
+              <p className="mt-3 max-w-2xl text-sm text-charcoal-muted">{it.a}</p>
             </details>
           ))}
         </div>
@@ -545,20 +600,28 @@ function Faq() {
 }
 
 /* ------------------------------------------------------------------- CTA */
+/* Beautiful gradient — the heaviest mesh in the page, echoing the Hero. The
+   two most visually rich moments are deliberately the open and the close. */
 
 function FinalCta() {
   return (
-    <section className="border-b border-border bg-surface">
-      <div className="mx-auto w-full max-w-3xl px-6 py-24 text-center">
-        <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          Send your first distribution.
-        </h2>
-        <p className="mx-auto mt-4 max-w-lg text-pretty text-muted-foreground">
-          Connect your wallet and pay everyone at once — reviewed, tracked, and verifiable onchain.
-        </p>
-        <div className="mt-8 flex justify-center">
-          <ConnectWalletButton />
-        </div>
+    <section
+      className="relative overflow-hidden"
+      style={{ backgroundImage: "var(--gradient-mesh)" }}
+    >
+      <div className="mx-auto w-full max-w-3xl px-6 py-28 text-center">
+        <Reveal>
+          <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+            Send your first distribution.
+          </h2>
+          <p className="mx-auto mt-5 max-w-lg text-lg text-pretty text-charcoal-muted">
+            Connect your wallet and pay everyone at once — reviewed, tracked, and verifiable
+            onchain.
+          </p>
+          <div className="mt-9 flex justify-center">
+            <ConnectWalletButton />
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -568,42 +631,41 @@ function FinalCta() {
 
 function Footer() {
   return (
-    <footer className="mx-auto w-full max-w-5xl px-6 py-12">
-      <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
-        <div>
-          <div className="flex items-center gap-2">
-            <DistroMark className="h-[1.15rem] w-[1.15rem]" />
-            <p className="text-sm font-semibold tracking-tight">Distro</p>
+    <footer className="bg-background">
+      <div className="mx-auto w-full max-w-5xl px-6 py-14">
+        <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
+          <div>
+            <p className="font-mono text-sm font-semibold tracking-tight">Distro</p>
+            <p className="mt-1 text-xs text-charcoal-muted">
+              Onchain distribution engine for Monad.
+            </p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Onchain distribution engine for Monad.
-          </p>
+          <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-charcoal-muted">
+            <Link href="/dashboard" className="hover:text-foreground">
+              Dashboard
+            </Link>
+            <a
+              href="https://github.com/tweetbysobur/distro"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-foreground"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://monadscan.com/address/0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-foreground"
+            >
+              Contract
+            </a>
+          </nav>
         </div>
-        <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-          <Link href="/dashboard" className="hover:text-foreground">
-            Dashboard
-          </Link>
-          <a
-            href="https://github.com/tweetbysobur/distro"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-foreground"
-          >
-            GitHub
-          </a>
-          <a
-            href="https://monadscan.com/address/0xd9C74a4E9FccD971960b76AF204c0c3b7cbe4538"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-foreground"
-          >
-            Contract
-          </a>
-        </nav>
+        <p className="mt-8 text-xs text-charcoal-muted">
+          Not a wallet, exchange, bridge, bank, or custodian.
+        </p>
       </div>
-      <p className="mt-8 text-xs text-muted-foreground">
-        Not a wallet, exchange, bridge, bank, or custodian.
-      </p>
     </footer>
   );
 }
