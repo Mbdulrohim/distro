@@ -26,11 +26,11 @@ The distribution layer teams trust with payroll, because it's boring, correct, a
 
 ## Brand Personality
 
-Precise, trustworthy, understated. Confident about correctness rather than hype — this product moves real money on a schedule, so tone stays calm and clear even in error states. Terse UI copy; explanation lives in docs and tooltips, not crammed into buttons.
+Precise, trustworthy, **confidently premium — editorial, not shy.** Confident about correctness rather than hype, but not afraid of a huge headline or a beautiful hero: this is a funded Series A fintech infrastructure company (Stripe/Mercury/Linear/Vercel register), not a quiet utility tool. Copy stays honest and calm in error states even as the visual register gets more expressive elsewhere. (Revised — see DESIGN.md v3.)
 
 ## Anti-references
 
-Generic crypto/DeFi visual language: neon gradients, glassmorphism-heavy dashboards, degen/hype copy, excessive motion for its own sake. Distro should read closer to Stripe, Linear, Mercury, and Vercel than to a typical token-launch site. The brand colour is a restrained enterprise **violet** (Stripe/Linear register) on a white-dominant, soft-lavender canvas — this is deliberately _not_ the neon "crypto purple" the rest of this line rejects. See DESIGN.md.
+Generic crypto/DeFi visual language: neon gradients, degen/hype copy, decoration without intent. Distro should read closer to Stripe, Linear, Mercury, Vercel, and PolicyMesh than to a typical token-launch site. The brand colour is purple (`#6D5EF7`) on a white-dominant, layered-lavender canvas — this is deliberately _not_ neon "crypto purple." Glassmorphism is scoped, not banned: it appears only on marketing surfaces (Templates section) over lavender/gradient-mesh backgrounds — the authenticated dashboard and data tables stay solid white, since money data needs plain legibility, not glass. See DESIGN.md v3.
 
 ## Design Principles
 
