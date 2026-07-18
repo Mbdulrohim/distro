@@ -9,6 +9,7 @@ import { getDistribution, getRecipients, getSummary, getTransactions } from "@/l
 import { StatusBadge } from "@/components/distributions/status-badge";
 import { RecipientResults } from "@/components/distributions/recipient-results";
 import { RetryPanel } from "@/components/distributions/retry-panel";
+import { ScheduledRetryPanel } from "@/components/distributions/scheduled-retry-panel";
 import { ExecuteScheduledChunksPanel } from "@/components/distributions/execute-scheduled-chunks-panel";
 import { isAddress } from "viem";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
@@ -50,6 +51,33 @@ export default async function DistributionDetailPage({
 
   const explorer = supportedChains.find((c) => c.id === dist.chainId)?.blockExplorers?.default.url;
   const failedCount = summary.failed;
+
+  // Shared grouping for the scheduled (escrow) path — chunk index = batch
+  // index, position = index in batch. Built once here rather than separately
+  // in the execute and retry sections, since both need the same chunks.
+  const chunksByIndex =
+    dist.kind === "scheduled"
+      ? Object.entries(
+          recipients.reduce<Record<number, typeof recipients>>((byChunk, r) => {
+            (byChunk[r.batchIndex] ??= []).push(r);
+            return byChunk;
+          }, {}),
+        )
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([chunkIndex, rows]) => {
+            const ordered = [...rows].sort((a, b) => a.indexInBatch - b.indexInBatch);
+            return {
+              index: Number(chunkIndex),
+              rows: ordered,
+              payload: encodePayload(
+                ordered.map((r) => ({
+                  address: r.address as `0x${string}`,
+                  amount: BigInt(r.amount),
+                })),
+              ),
+            };
+          })
+      : [];
 
   return (
     <main className="mx-auto w-full max-w-4xl px-6 py-10">
@@ -100,30 +128,18 @@ export default async function DistributionDetailPage({
             distributionId={dist.id}
             escrowAddress={dist.escrowAddress as `0x${string}`}
             executeAfter={dist.executeAfter}
-            chunks={Object.entries(
-              recipients.reduce<Record<number, typeof recipients>>((byChunk, r) => {
-                (byChunk[r.batchIndex] ??= []).push(r);
-                return byChunk;
-              }, {}),
-            )
-              .sort(([a], [b]) => Number(a) - Number(b))
-              .map(([chunkIndex, rows]) => ({
-                index: Number(chunkIndex),
-                payload: encodePayload(
-                  [...rows]
-                    .sort((a, b) => a.indexInBatch - b.indexInBatch)
-                    .map((r) => ({
-                      address: r.address as `0x${string}`,
-                      amount: BigInt(r.amount),
-                    })),
-                ),
-              }))}
+            chunks={chunksByIndex.map(({ index, payload }) => ({ index, payload }))}
           />
         </section>
       ) : null}
 
-      {/* Partial failure leads with the remedy, not the alarm */}
-      {failedCount > 0 ? (
+      {/* Partial failure leads with the remedy, not the alarm. Two entirely
+          different remedies depending on kind: an immediate distribution's
+          failed tokens never left the wallet (Multisend retry); a scheduled
+          one's already left it into escrow at fund() time, so retrying must
+          move the SAME escrowed funds via the contract's own `retry`, never
+          re-pull from the wallet through Multisend. */}
+      {failedCount > 0 && dist.kind === "immediate" ? (
         <div className="mb-8 rounded-lg border border-warning/30 bg-warning-surface px-4 py-3 text-sm">
           <p className="font-medium text-warning">
             {failedCount} payment{failedCount === 1 ? "" : "s"} didn&apos;t go through.
@@ -141,6 +157,31 @@ export default async function DistributionDetailPage({
               failed={recipients.filter((r) => r.status === "failed")}
             />
           ) : null}
+        </div>
+      ) : null}
+
+      {failedCount > 0 && dist.kind === "scheduled" && dist.escrowAddress ? (
+        <div className="mb-8 rounded-lg border border-warning/30 bg-warning-surface px-4 py-3 text-sm">
+          <p className="font-medium text-warning">
+            {failedCount} payment{failedCount === 1 ? "" : "s"} didn&apos;t go through.
+          </p>
+          <p className="mt-1 mb-3 text-muted-foreground">
+            Those tokens are held in the escrow contract, not your wallet — retrying moves the same
+            escrowed funds; nobody gets paid twice.
+          </p>
+          <ScheduledRetryPanel
+            distributionId={dist.id}
+            escrowAddress={dist.escrowAddress as `0x${string}`}
+            chainId={dist.chainId}
+            chunks={chunksByIndex
+              .map((c) => ({
+                chunkIndex: c.index,
+                payload: c.payload,
+                recipients: c.rows.filter((r) => r.status === "failed"),
+                positions: c.rows.filter((r) => r.status === "failed").map((r) => r.indexInBatch),
+              }))
+              .filter((c) => c.positions.length > 0)}
+          />
         </div>
       ) : null}
 

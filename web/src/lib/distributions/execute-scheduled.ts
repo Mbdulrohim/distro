@@ -323,3 +323,73 @@ export async function* executeScheduledDistribution(args: {
 
   yield { type: "done", results };
 }
+
+/**
+ * Retry failed positions within one already-executed chunk of a scheduled
+ * distribution, via the escrow's own `retry`.
+ *
+ * This is NOT `executeDistribution`/Multisend — a scheduled distribution's
+ * funds are already sitting in the escrow contract (pulled at `fund()` time),
+ * not in the creator's wallet, so retrying through Multisend would either
+ * fail confusingly (no allowance on the wrong contract) or, worse, pull a
+ * second payment for the same recipient from whatever balance/allowance the
+ * creator happens to have lying around. `retry` only ever moves the SAME
+ * already-escrowed funds, and only to positions the contract still has
+ * flagged as failed — it cannot double-pay (see Distribution.sol's own
+ * `NotFailed` guard).
+ */
+export async function* retryScheduledChunk(args: {
+  config: Config;
+  chainId: number;
+  distribution: Address;
+  chunkIndex: number;
+  /** The full, original chunk payload (same one passed to `executeChunk`) —
+   * required to re-verify against the on-chain commitment hash. */
+  payload: `0x${string}`;
+  /** Positions within this chunk to retry. Must currently be flagged failed
+   * on-chain, or the transaction reverts (`NotFailed`). */
+  positions: number[];
+}): AsyncGenerator<
+  | { type: "retry:signing" }
+  | { type: "retry:submitted"; txHash: Hash }
+  | { type: "retry:confirmed"; result: ScheduledChunkResult },
+  void,
+  undefined
+> {
+  const { config, chainId, distribution, chunkIndex, payload, positions } = args;
+
+  yield { type: "retry:signing" };
+  const txHash = await writeContract(config, {
+    chainId,
+    address: distribution,
+    abi: distributionAbi,
+    functionName: "retry",
+    args: [BigInt(chunkIndex), payload, positions.map((p) => BigInt(p))],
+  });
+  yield { type: "retry:submitted", txHash };
+
+  const receipt = await waitForTransactionReceipt(config, { chainId, hash: txHash });
+  const logs = parseEventLogs({
+    abi: distributionAbi,
+    logs: receipt.logs,
+    eventName: ["Paid", "PaymentFailed"],
+  });
+
+  const payments: ScheduledPaymentResult[] = logs.map((log) => ({
+    recipient: log.args.recipient as Address,
+    amount: log.args.amount as bigint,
+    index: Number(log.args.position as bigint),
+    status: log.eventName === "Paid" ? "paid" : "failed",
+  }));
+
+  const result: ScheduledChunkResult = {
+    chunkIndex,
+    txHash,
+    blockNumber: receipt.blockNumber,
+    gasUsed: receipt.gasUsed,
+    payments,
+    paidCount: payments.filter((p) => p.status === "paid").length,
+    failedCount: payments.filter((p) => p.status === "failed").length,
+  };
+  yield { type: "retry:confirmed", result };
+}

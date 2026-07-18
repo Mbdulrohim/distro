@@ -72,7 +72,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   const { data: dist } = await supabase
     .from("distributions")
-    .select("id")
+    .select("id, kind")
     .eq("id", id)
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -161,8 +161,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     .eq("distribution_id", id)
     .eq("status", "failed");
 
+  // Same kind-aware vocabulary as /results — "executing" for a scheduled
+  // (escrow) distribution, "submitted" for immediate (Multisend).
+  const inProgressStatus = dist.kind === "scheduled" ? "executing" : "submitted";
   const status =
-    (pending ?? 0) > 0 ? "submitted" : (failed ?? 0) > 0 ? "partially_completed" : "completed";
+    (pending ?? 0) > 0 ? inProgressStatus : (failed ?? 0) > 0 ? "partially_completed" : "completed";
 
   await supabase
     .from("distributions")
