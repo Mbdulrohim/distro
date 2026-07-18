@@ -60,6 +60,26 @@ contract Distribution is ReentrancyGuard {
     /// @notice Sentinel for `token` meaning "native MON", never a real ERC-20.
     address internal constant NATIVE = address(0);
 
+    /// @notice The only address allowed to call `initialize`.
+    /// @dev Set once, in the constructor of the IMPLEMENTATION contract — an
+    /// immutable is embedded directly into the bytecode every clone executes
+    /// via `delegatecall`, so this is readable (and enforceable) from every
+    /// clone despite each clone having its own, otherwise-empty storage.
+    ///
+    /// Not currently exploitable without this check: `DistributionFactory`
+    /// deploys a clone and calls `initialize` on it atomically, in the same
+    /// transaction, so no third party ever observes an uninitialized clone to
+    /// race. This check exists anyway, because that safety currently rests
+    /// entirely on "nothing else ever deploys a clone without immediately
+    /// initializing it" — true today, but not a property this contract
+    /// itself enforces without this line. Cheap insurance against that
+    /// invariant ever being violated by a future change.
+    address public immutable expectedFactory;
+
+    constructor(address expectedFactory_) {
+        expectedFactory = expectedFactory_;
+    }
+
     enum State {
         Uninitialized,
         Draft,
@@ -136,6 +156,7 @@ contract Distribution is ReentrancyGuard {
     event Reclaimed(uint256 amount);
 
     error AlreadyInitialized();
+    error NotFactory();
     error NotCreator();
     error WrongState();
     error ChunkOutOfRange();
@@ -168,6 +189,7 @@ contract Distribution is ReentrancyGuard {
         address treasury_
     ) external {
         if (state != State.Uninitialized) revert AlreadyInitialized();
+        if (msg.sender != expectedFactory) revert NotFactory();
         creator = creator_;
         token = token_;
         factory = msg.sender;

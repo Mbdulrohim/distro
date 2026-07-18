@@ -57,7 +57,7 @@ contract DistributionFactory is Ownable {
     error NoChunks();
 
     constructor(address owner_, address treasury_) Ownable(owner_) {
-        implementation = address(new Distribution());
+        implementation = address(new Distribution(address(this)));
         treasury = treasury_;
         // Ships at zero. The mechanism exists from day one so monetization
         // never forces a re-audit; the rate is a later decision.

@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { DistributionFactory } from "../src/DistributionFactory.sol";
 import { Distribution } from "../src/Distribution.sol";
 import { PayloadLib } from "../src/PayloadLib.sol";
@@ -98,6 +99,32 @@ contract DistributionTest is Test {
         Distribution d = _create(address(token), 1, bytes32(uint256(1)));
         vm.expectRevert(Distribution.AlreadyInitialized.selector);
         d.initialize(stranger, address(token), executeAfter, 1, 0, treasury);
+    }
+
+    /// @dev Defense in depth: only the factory that deployed a clone may
+    /// initialize it, even though today's atomic clone+init in the same
+    /// transaction means nobody else ever gets the chance to race it. A
+    /// fresh, un-factory-deployed clone of the same implementation proves
+    /// the check actually holds, not just "nothing currently reaches it".
+    function test_initialize_onlyCallableByFactory() public {
+        address implementation = factory.implementation();
+        Distribution rogueClone = Distribution(Clones.clone(implementation));
+
+        vm.prank(stranger);
+        vm.expectRevert(Distribution.NotFactory.selector);
+        rogueClone.initialize(stranger, address(token), executeAfter, 1, 0, treasury);
+    }
+
+    /// @dev The real factory itself must still be able to initialize a clone
+    /// it deploys directly (not just through `createDistribution`) — proves
+    /// the check is scoped to the right address, not merely "always reverts".
+    function test_initialize_callableByRealFactory() public {
+        address implementation = factory.implementation();
+        Distribution manualClone = Distribution(Clones.clone(implementation));
+
+        vm.prank(address(factory));
+        manualClone.initialize(creator, address(token), executeAfter, 1, 0, treasury);
+        assertEq(manualClone.creator(), creator);
     }
 
     /*//////////////////////////////////////////////////////////////
