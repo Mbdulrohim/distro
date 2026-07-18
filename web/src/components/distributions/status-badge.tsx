@@ -12,7 +12,9 @@ import { cn } from "@/lib/utils";
  * hue discrimination (~8% of men can't rely on it).
  */
 
-const STATUS: Record<string, { label: string; icon: typeof Check; className: string }> = {
+type StatusMeta = { label: string; icon: typeof Check; className: string; live?: boolean };
+
+const STATUS: Record<string, StatusMeta> = {
   draft: {
     label: "Draft",
     icon: Circle,
@@ -22,8 +24,10 @@ const STATUS: Record<string, { label: string; icon: typeof Check; className: str
   submitted: {
     label: "In flight",
     icon: Clock,
-    // Pending — outcome genuinely unknown until the receipt lands.
+    // Pending — outcome genuinely unknown until the receipt lands. `live`
+    // adds a quiet pulse so an in-progress run reads as active, not stalled.
     className: "border-info/30 bg-info-surface text-info",
+    live: true,
   },
   // Tier-2 (escrow) states — committed but not yet funded, or funded and
   // waiting for its scheduled time. Distinct from "draft": the recipient
@@ -42,6 +46,7 @@ const STATUS: Record<string, { label: string; icon: typeof Check; className: str
     label: "Executing",
     icon: Clock,
     className: "border-info/30 bg-info-surface text-info",
+    live: true,
   },
   cancelled: {
     label: "Cancelled",
@@ -68,7 +73,7 @@ const STATUS: Record<string, { label: string; icon: typeof Check; className: str
 };
 
 export function StatusBadge({ status, count }: { status: string; count?: number }) {
-  const s = STATUS[status] ?? {
+  const s: StatusMeta = STATUS[status] ?? {
     label: status,
     icon: Circle,
     className: "border-border bg-surface-2 text-muted-foreground",
@@ -78,11 +83,20 @@ export function StatusBadge({ status, count }: { status: string; count?: number 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
         s.className,
       )}
     >
-      <Icon className="size-3" aria-hidden />
+      {s.live ? (
+        // A soft pulsing dot for an active run — the one place motion earns
+        // its keep on the flat dashboard. `motion-reduce` stills it.
+        <span className="relative flex size-2" aria-hidden>
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden" />
+          <span className="relative inline-flex size-2 rounded-full bg-current" />
+        </span>
+      ) : (
+        <Icon className="size-3" aria-hidden />
+      )}
       {s.label}
       {count !== undefined && count > 0 ? ` · ${count} failed` : null}
     </span>

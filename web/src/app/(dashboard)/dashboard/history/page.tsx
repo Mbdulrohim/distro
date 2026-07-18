@@ -97,17 +97,15 @@ export default async function HistoryPage({
           <div className="overflow-hidden rounded-xl border border-border">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-surface text-left text-xs text-muted-foreground">
+                <thead className="border-b border-border bg-surface text-left text-[0.7rem] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
                   <tr>
-                    <th className="px-4 py-2.5 font-medium">Name</th>
-                    <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Token</th>
-                    <th className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">
-                      Recipients
-                    </th>
-                    <th className="px-4 py-2.5 text-right font-medium">Total</th>
-                    <th className="px-4 py-2.5 font-medium">Status</th>
-                    <th className="hidden px-4 py-2.5 font-medium md:table-cell">Created</th>
-                    <th className="w-8 px-2 py-2.5" aria-hidden />
+                    <th className="px-4 py-3">Name</th>
+                    <th className="hidden px-4 py-3 sm:table-cell">Token</th>
+                    <th className="hidden px-4 py-3 text-right sm:table-cell">Recipients</th>
+                    <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="hidden px-4 py-3 md:table-cell">Created</th>
+                    <th className="w-8 px-2 py-3" aria-hidden />
                   </tr>
                 </thead>
                 <tbody>
