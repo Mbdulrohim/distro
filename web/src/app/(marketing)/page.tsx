@@ -21,10 +21,11 @@ import { SignedInRedirectNotice } from "./signed-in-redirect-notice";
 /**
  * Distro landing page.
  *
- * Brand register (DESIGN.md): this is the one surface where design IS the
- * product. Monochrome-first, Geist, functional colour used only for payment
- * meaning, flat, generous space — reads like Stripe/Linear/Mercury/Vercel, not
- * a token-launch site.
+ * Brand register (DESIGN.md v2): this is the one surface where design IS the
+ * product. White-dominant with soft lavender sections and a single enterprise
+ * violet for brand + interaction; Geist; functional green/amber/red reserved
+ * for payment meaning — reads like Stripe/Linear/Mercury/Vercel, not a
+ * token-launch site.
  *
  * Integrity constraints, deliberate: no fabricated trust (no fake logos,
  * testimonials, or user counts), and no audit claim, because Distro is not

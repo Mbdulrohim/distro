@@ -152,7 +152,7 @@ export function DistributionReview({
       </dl>
 
       {insufficient && balance !== undefined ? (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="rounded-lg border border-destructive/30 bg-destructive-surface px-4 py-3 text-sm text-destructive">
           Insufficient balance — short by{" "}
           {formatAmountWithSymbol(total - balance, token.decimals, token.symbol)}.
         </p>
@@ -161,7 +161,7 @@ export function DistributionReview({
       {/* Recipient preview */}
       <div className="rounded-lg border border-border">
         <table className="w-full text-sm">
-          <thead className="bg-muted text-left text-xs text-muted-foreground">
+          <thead className="bg-surface text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-2 font-medium">Recipient</th>
               <th className="px-4 py-2 text-right font-medium">Amount</th>
@@ -188,7 +188,7 @@ export function DistributionReview({
       </div>
 
       {/* The irreversibility gate — plain words, not fine print. */}
-      <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive-surface p-4">
         <p className="flex items-start gap-2 text-sm text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <span>
