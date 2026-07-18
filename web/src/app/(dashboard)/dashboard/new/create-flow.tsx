@@ -11,6 +11,7 @@ import { useAccount } from "wagmi";
 import {
   isMultisendDeployed,
   getMultisendAddress,
+  getMultisendNativeAddress,
   isDistributionFactoryDeployed,
 } from "@/config/contracts";
 import { ExecutePanel } from "@/components/distributions/execute-panel";
@@ -137,7 +138,14 @@ export function CreateFlow() {
           tokenAddress: token.address ?? "0x0000000000000000000000000000000000000000",
           tokenSymbol: token.symbol,
           tokenDecimals: token.decimals,
-          multisendAddress: scheduled ? undefined : getMultisendAddress(chainId!),
+          // Whichever immediate-path contract will actually execute this —
+          // MultisendNative for native MON, Multisend for everything else —
+          // so the recorded address matches what really moves the money.
+          multisendAddress: scheduled
+            ? undefined
+            : token.isNative
+              ? getMultisendNativeAddress(chainId!)
+              : getMultisendAddress(chainId!),
           recipients: recipients.map((r) => ({
             address: r.address,
             amount: r.amount.toString(),

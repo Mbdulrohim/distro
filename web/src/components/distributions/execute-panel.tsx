@@ -5,7 +5,13 @@ import { useConfig, useAccount } from "wagmi";
 import { Loader2, Check, X, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { executeDistribution, type BatchResult } from "@/lib/distributions/execute";
-import { isMultisendDeployed, getMultisendAddress } from "@/config/contracts";
+import { executeNativeDistribution } from "@/lib/distributions/execute-native";
+import {
+  isMultisendDeployed,
+  getMultisendAddress,
+  isMultisendNativeDeployed,
+  getMultisendNativeAddress,
+} from "@/config/contracts";
 import { truncateAddress } from "@/lib/format";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
 import { maxRecipientsPerBatch } from "@/lib/gas/estimate";
@@ -82,26 +88,41 @@ export function ExecutePanel({
   const [txs, setTxs] = useState<{ hash: string; confirmed: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const deployed = chainId !== undefined && isMultisendDeployed(chainId);
+  const deployed =
+    chainId === undefined
+      ? false
+      : token.isNative
+        ? isMultisendNativeDeployed(chainId)
+        : isMultisendDeployed(chainId);
   const explorer = config.chains.find((c) => c.id === chainId)?.blockExplorers?.default.url;
 
   async function run() {
-    if (!account || !chainId || !token.address) return;
+    if (!account || !chainId) return;
+    if (!token.isNative && !token.address) return;
     setPhase("running");
     setError(null);
     setTxs([]);
     setResults([]);
 
     try {
-      const stream = executeDistribution({
-        config,
-        chainId,
-        multisend: getMultisendAddress(chainId),
-        token: token.address,
-        account,
-        entries: recipients.map((r) => ({ address: r.address, amount: r.amount })),
-        batchSize: effectiveBatchSize,
-      });
+      const stream = token.isNative
+        ? executeNativeDistribution({
+            config,
+            chainId,
+            multisendNative: getMultisendNativeAddress(chainId),
+            account,
+            entries: recipients.map((r) => ({ address: r.address, amount: r.amount })),
+            batchSize: effectiveBatchSize,
+          })
+        : executeDistribution({
+            config,
+            chainId,
+            multisend: getMultisendAddress(chainId),
+            token: token.address!,
+            account,
+            entries: recipients.map((r) => ({ address: r.address, amount: r.amount })),
+            batchSize: effectiveBatchSize,
+          });
 
       for await (const ev of stream) {
         switch (ev.type) {

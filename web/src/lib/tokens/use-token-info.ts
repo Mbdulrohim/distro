@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useChainId, useReadContracts } from "wagmi";
 import { erc20Abi, isAddress } from "viem";
 import { monadMainnet } from "@/config/chains";
+import { isMultisendNativeDeployed } from "@/config/contracts";
 import { findRegistryToken } from "./registry";
 import { NATIVE_SENTINEL, type ResolvedToken, type TokenRef } from "./types";
 
@@ -25,9 +26,9 @@ export interface UseTokenInfoResult {
 }
 
 /**
- * `mode` decides whether native MON can resolve as distributable. `Multisend`
- * ("immediate") has no native path — MON only resolves for the escrow
- * ("scheduled") path, where `fund()` takes native value directly. ERC-20s are
+ * `mode` decides which contract native MON would move through, and whether
+ * that contract is actually deployed on the connected chain: `MultisendNative`
+ * for "immediate", the escrow's `fund()` for "scheduled". ERC-20s are
  * distributable either way, so `mode` only changes the native branch.
  */
 export function useTokenInfo(
@@ -54,7 +55,7 @@ export function useTokenInfo(
     // Native MON: metadata comes from the chain definition, not a contract.
     if (isNative) {
       const entry = findRegistryToken(chainId, NATIVE_SENTINEL);
-      const distributable = mode === "scheduled";
+      const distributable = mode === "scheduled" ? true : isMultisendNativeDeployed(chainId);
       return {
         isLoading: false,
         token: {

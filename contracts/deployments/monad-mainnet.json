@@ -15,6 +15,19 @@
       "wiredIntoApp": true,
       "wiredIntoAppAt": "2026-07-19",
       "notes": "UNAUDITED. Deployed at the user's explicit instruction after the audit risk was stated. Wired into web/src/config/contracts.ts on 2026-07-19, also at the user's explicit instruction, as a deliberate exception to (not a reversal of) the audit-before-mainnet rule: Multisend is stateless and non-custodial by construction, so a bug cannot strand or steal escrowed funds the way one could in the Distribution escrow contract, which remains unwired and blocked on a real audit (docs/AUDIT_SCOPE.md). bytecodeVerified below is from the original deployment session; re-verify with `cast code` when network access allows, since it could not be re-checked at wiring time. Same address as testnet: identical deployer at nonce 0 yields the same CREATE address on both chains."
+    },
+    "MultisendNative": {
+      "address": "0x856Cd381Fbc2d6f880a509F372F2c806d89415b4",
+      "deploymentTx": "0x10eb2d75f413bbe7bc621cad0c1104f0f33834223eba94d964ec5c9e220983af",
+      "blockNumber": 88632513,
+      "gasUsed": 463733,
+      "effectiveGasPrice": "102000000000",
+      "deployer": "0xB3F2C4cAABC5A7320CFF18B208882Ad1D034431F",
+      "deployedAt": "2026-07-19",
+      "bytecodeVerified": true,
+      "audited": false,
+      "wiredIntoApp": false,
+      "notes": "UNAUDITED. Deployed at the user's explicit instruction, same non-custodial risk profile as Multisend (no owner, no admin, no privileged role, holds nothing between transactions -- see src/MultisendNative.sol and its 12-test suite). Bytecode verified live via cast code immediately after deployment. Not yet wired into web/src/config/contracts.ts -- that's the next step."
     }
   }
 }
