@@ -169,6 +169,18 @@ contract RevertingReceiver {
     }
 }
 
+/// @dev A caller that rejects its own refund. Used to prove
+/// `MultisendNative.distribute` reverts the whole call (rather than
+/// stranding MON in the contract) when the end-of-call refund itself fails.
+contract RefundRejecter {
+    error CallFailed(bytes returndata);
+
+    function call(address target, bytes calldata data, uint256 value) external payable {
+        (bool ok, bytes memory ret) = target.call{ value: value }(data);
+        if (!ok) revert CallFailed(ret);
+    }
+}
+
 /// @dev Consumes every unit of gas forwarded with a native MON send — the
 /// native-MON analogue of `TransferGasBurnerToken`, for the gas-griefing test.
 contract GasBurnerReceiver {
