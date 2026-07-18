@@ -20,6 +20,7 @@ import { ConnectWalletButton } from "@/components/auth/connect-wallet-button";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { HoverCard } from "@/components/ui/card";
 import { SignedInRedirectNotice } from "./signed-in-redirect-notice";
+import { AuthRedirect } from "./auth-redirect";
 
 /**
  * Distro landing page — DESIGN.md v3.
@@ -45,6 +46,7 @@ export default async function MarketingPage({
   return (
     <>
       <AppHeader />
+      <AuthRedirect />
       <main className="flex flex-1 flex-col">
         {redirect ? (
           <div className="mx-auto w-full max-w-5xl px-6 pt-6">

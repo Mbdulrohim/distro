@@ -1,25 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/use-auth";
 
 /**
  * Shown when a user is redirected here from a protected route. Explains why
- * they're seeing the landing page, and forwards them to their original
- * destination the moment authentication completes.
+ * they're seeing the landing page. The actual navigation once signed in is
+ * `AuthRedirect`'s job (always mounted on this page) — this component is
+ * purely the explanatory banner, so there's only one place that decides
+ * when to navigate.
  */
 export function SignedInRedirectNotice() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuth();
   const target = searchParams.get("redirect") ?? "/dashboard";
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.replace(target);
-    }
-  }, [isAuthenticated, router, target]);
 
   if (isAuthenticated) return null;
 
