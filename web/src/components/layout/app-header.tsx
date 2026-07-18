@@ -9,9 +9,9 @@ import { DistroMark } from "@/components/brand/distro-mark";
 export function AppHeader() {
   return (
     <header className="flex h-14 items-center justify-between border-b border-border px-6">
-      <Link href="/" className="flex items-center gap-2">
+      <Link href="/" className="flex items-center gap-2 text-primary">
         <DistroMark className="h-5 w-5" />
-        <span className="text-[0.95rem] font-semibold tracking-tight">Distro</span>
+        <span className="text-[0.95rem] font-semibold tracking-tight text-foreground">Distro</span>
       </Link>
       <ConnectWalletButton />
     </header>

@@ -29,14 +29,19 @@ interface TokenSelectorProps {
   /** Total the distribution needs, base units — enables the balance check. */
   requiredAmount?: bigint;
   onSelect?: (token: TokenSelection | undefined) => void;
+  /** Pre-selects a token ref (e.g. when starting a distribution from a
+   * saved template). Only applied once, on mount — not a controlled value. */
+  initialRef?: TokenRef;
 }
 
-export function TokenSelector({ requiredAmount, onSelect }: TokenSelectorProps) {
+export function TokenSelector({ requiredAmount, onSelect, initialRef }: TokenSelectorProps) {
   const chainId = useChainId();
   const supported = getSupportedTokens(chainId);
 
-  const [selectedRef, setSelectedRef] = useState<TokenRef | undefined>();
-  const [customInput, setCustomInput] = useState("");
+  const [selectedRef, setSelectedRef] = useState<TokenRef | undefined>(initialRef);
+  const [customInput, setCustomInput] = useState(() =>
+    initialRef && !supported.some((t) => t.ref === initialRef) ? initialRef : "",
+  );
 
   const { token, isLoading, error } = useTokenInfo(selectedRef);
   const { balance, isLoading: balanceLoading } = useTokenBalance(selectedRef);

@@ -68,3 +68,19 @@ export async function findUserId(walletAddress: string): Promise<string | null> 
   if (error) throw new Error(`Failed to look up user: ${error.message}`);
   return data?.id ?? null;
 }
+
+/** Account-level facts for the Settings page — nothing beyond what the row holds. */
+export async function getUserProfile(
+  walletAddress: string,
+): Promise<{ walletAddress: string; memberSince: string } | null> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("wallet_address, created_at")
+    .eq("wallet_address", walletAddress)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load user profile: ${error.message}`);
+  if (!data) return null;
+  return { walletAddress: data.wallet_address, memberSince: data.created_at };
+}

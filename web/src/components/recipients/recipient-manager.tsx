@@ -47,6 +47,9 @@ interface RecipientManagerProps {
   balance?: bigint;
   /** Called whenever the validated set changes. */
   onChange?: (value: RecipientManagerValue) => void;
+  /** Pre-populates the row list (e.g. from a saved template). Applied once,
+   * on mount — not a controlled value. */
+  initialRows?: { address: string; amount: string }[];
 }
 
 const newId = () =>
@@ -59,8 +62,11 @@ export function RecipientManager({
   tokenSymbol,
   balance,
   onChange,
+  initialRows,
 }: RecipientManagerProps) {
-  const [rows, setRows] = useState<EditableRow[]>([]);
+  const [rows, setRows] = useState<EditableRow[]>(() =>
+    (initialRows ?? []).map((r) => ({ id: newId(), address: r.address, amount: r.amount })),
+  );
   const [pasteText, setPasteText] = useState("");
   const [manualAddress, setManualAddress] = useState("");
   const [manualAmount, setManualAmount] = useState("");

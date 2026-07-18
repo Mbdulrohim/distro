@@ -14,7 +14,6 @@ import {
   X,
   FolderGit2,
   BadgeCheck,
-  Eye,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/auth/connect-wallet-button";
@@ -54,16 +53,14 @@ export default async function MarketingPage({
         ) : null}
 
         <Hero />
-        <TrustedBy />
         <Problem />
         <Solution />
-        <ProductPreview />
         <HowItWorks />
-        <Templates />
         <Features />
-        <LiveTimeline />
-        <WhyMonad />
+        <Templates />
+        <WhoUsesDistro />
         <Security />
+        <WhyMonad />
         <Faq />
         <FinalCta />
       </main>
@@ -86,30 +83,30 @@ function Hero() {
       <div className="relative mx-auto grid w-full max-w-6xl gap-16 px-6 py-24 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-36">
         <Reveal duration={0.7}>
           <div className="flex flex-col gap-7">
-            <p className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background/80 px-4 py-1.5 text-xs font-medium text-charcoal-muted backdrop-blur-sm">
-              <span className="size-1.5 rounded-full bg-success" />
-              Onchain distribution engine · Monad
+            <p className="text-xs font-semibold tracking-[0.16em] text-primary-text uppercase">
+              Onchain distribution engine
             </p>
             <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl lg:text-[4.5rem]">
-              Pay hundreds of wallets in one workflow.
+              Distribute tokens to hundreds of wallets. In one workflow.
             </h1>
             <p className="max-w-md text-lg text-pretty text-charcoal-muted">
-              Payroll, rewards, grants, and payouts — import recipients, review once, and Distro
-              sends to everyone onchain. No scripts. No spreadsheets. No custody.
+              Distro is an onchain distribution platform that helps teams automate token payouts at
+              scale. Upload recipients, choose a token, schedule execution, and let Distro handle
+              every distribution securely on Monad.
             </p>
             <div className="flex flex-wrap items-center gap-4 pt-2">
-              <ConnectWalletButton />
+              <ConnectWalletButton label="Start Distribution" size="lg" />
               <Link
-                href="/dashboard"
+                href="https://github.com/tweetbysobur/distro/tree/main/docs"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary-text"
               >
-                Open the dashboard
+                View Documentation
                 <ArrowRight className="size-4" />
               </Link>
             </div>
-            <p className="text-xs text-charcoal-muted">
-              Non-custodial · Verifiable onchain · Open source
-            </p>
+            <MonadBadge />
           </div>
         </Reveal>
 
@@ -118,6 +115,30 @@ function Hero() {
         </Reveal>
       </div>
     </section>
+  );
+}
+
+/**
+ * A small "built on Monad" chain badge — replaces the old text-only
+ * "Onchain distribution engine · Monad" pill. The engine claim now lives in
+ * the small label above the headline; this badge's only job is the chain
+ * credential, so it's deliberately quiet: a mark + wordmark, nothing else.
+ *
+ * The mark below is an original abstract shape (not Monad's official
+ * trademarked logo — no verified brand-asset SVG was available to embed
+ * faithfully), rendered in Monad's public brand purple so it still reads as
+ * a chain credential rather than a generic dot.
+ */
+function MonadBadge() {
+  return (
+    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background/80 px-3 py-1.5 backdrop-blur-sm">
+      <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
+        <path d="M12 1 L23 12 L12 23 L1 12 Z" fill="none" stroke="#836EF9" strokeWidth="2.2" />
+      </svg>
+      <span className="text-xs font-medium text-charcoal-muted">
+        Built on <span className="font-semibold text-foreground">Monad</span>
+      </span>
+    </div>
   );
 }
 
@@ -405,15 +426,34 @@ function Templates() {
   );
 }
 
-/* ----------------------------------------------------------- Trusted By */
-/* Flat white, quiet. Replaces a conventional logo-bar "Trusted By" section:
-   Distro has no customer logos to show yet, and inventing them would be
-   exactly the fabricated-trust this product's docs explicitly forbid on a
-   surface that sells a money product. Same slot, same instant-credibility
-   job — but every claim here is a fact a visitor can click and verify
-   themselves, not an assertion. */
+/* ------------------------------------------------------------ Who Uses Distro */
+/* Lavender flat — a deliberate change of surface after Templates' white. No
+   fabricated customer logos (Distro has none to show yet, and inventing them
+   would break the no-fabricated-trust rule on a page selling a money
+   product); the credibility job is done instead by the deployed,
+   bytecode-verified contract and the open repository, both linkable facts. */
 
-function TrustedBy() {
+function WhoUsesDistro() {
+  const useCases = [
+    { icon: Send, label: "Payroll", desc: "Pay a whole team in one workflow, every cycle." },
+    { icon: Zap, label: "Airdrops", desc: "Distribute a token to thousands of wallets at once." },
+    {
+      icon: Repeat,
+      label: "Community rewards",
+      desc: "Recurring payouts to active members or contributors.",
+    },
+    { icon: FileText, label: "Grants", desc: "Disburse grant tranches without manual transfers." },
+    {
+      icon: ListChecks,
+      label: "Contributor payouts",
+      desc: "Compensate DAO or open-source contributors on schedule.",
+    },
+    {
+      icon: Upload,
+      label: "Bulk transfers",
+      desc: "Anything that means sending the same token to many addresses.",
+    },
+  ];
   const facts = [
     {
       icon: BadgeCheck,
@@ -435,9 +475,27 @@ function TrustedBy() {
     },
   ];
   return (
-    <section className="bg-background">
-      <div className="mx-auto w-full max-w-5xl px-6 py-16">
-        <RevealGroup className="grid gap-6 sm:grid-cols-3">
+    <section className="bg-light-purple">
+      <div className="mx-auto w-full max-w-5xl px-6 py-28">
+        <Reveal>
+          <h2 className="max-w-xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+            Built for anyone paying more than one wallet at a time.
+          </h2>
+        </Reveal>
+
+        <RevealGroup className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {useCases.map((u) => (
+            <RevealItem key={u.label}>
+              <div className="h-full rounded-lg border border-border bg-background p-6 shadow-xs">
+                <u.icon className="size-5 text-primary" />
+                <p className="mt-4 font-medium">{u.label}</p>
+                <p className="mt-1.5 text-sm text-charcoal-muted">{u.desc}</p>
+              </div>
+            </RevealItem>
+          ))}
+        </RevealGroup>
+
+        <RevealGroup className="mt-6 grid gap-4 sm:grid-cols-3">
           {facts.map((f) => (
             <RevealItem key={f.label}>
               <a
@@ -457,151 +515,6 @@ function TrustedBy() {
             </RevealItem>
           ))}
         </RevealGroup>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------- Product Preview */
-/* Plain white, one floating card — the actual review screen's visual
-   language (irreversibility gate, both-units total), not another decorative
-   mock. This is deliberately a DIFFERENT screen than the Hero's execution
-   table, so the two hero-weight visuals in the page don't repeat each other.
-   The former "Use Cases" pill list folds in here as a closing strip. */
-
-function ProductPreview() {
-  const cases = [
-    "Monthly payroll",
-    "Community rewards",
-    "Airdrops",
-    "Bug bounty payouts",
-    "Hackathon prizes",
-    "Grant distributions",
-    "Creator revenue sharing",
-    "Affiliate payouts",
-    "Scholarship payments",
-    "DAO contributor comp",
-  ];
-  return (
-    <section className="bg-background">
-      <div className="mx-auto w-full max-w-4xl px-6 py-28">
-        <Reveal>
-          <div className="mb-4 flex items-center gap-2 text-sm font-medium text-primary-text">
-            <Eye className="size-4" />
-            Product preview
-          </div>
-          <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            The review step — the one deliberate pause before anything sends.
-          </h2>
-        </Reveal>
-
-        <Reveal delay={0.1} rise={20} className="mt-12">
-          <div
-            className="rounded-xl border border-border bg-background p-1.5"
-            style={{ boxShadow: "var(--shadow-md)" }}
-          >
-            <div className="rounded-lg bg-background p-6 sm:p-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-lg font-semibold">March payroll</p>
-                  <p className="text-sm text-charcoal-muted">Review everything before sending.</p>
-                </div>
-                <span className="rounded-full bg-light-purple px-3 py-1 text-xs font-medium text-primary-text">
-                  Draft
-                </span>
-              </div>
-
-              <dl className="mt-6 grid gap-3 border-t border-border pt-6 text-sm">
-                <div className="flex items-center justify-between">
-                  <dt className="text-charcoal-muted">Recipients</dt>
-                  <dd className="font-mono tabular-nums">240</dd>
-                </div>
-                <div className="flex items-start justify-between">
-                  <dt className="text-charcoal-muted">Total</dt>
-                  <dd className="text-right">
-                    <span className="font-mono tabular-nums">48,300.00 USDC</span>
-                    <span className="block font-mono text-xs text-charcoal-muted">
-                      48,300,000,000 base units
-                    </span>
-                  </dd>
-                </div>
-              </dl>
-
-              <div className="mt-6 flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive-surface p-4 text-sm text-destructive">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0" />
-                <span>
-                  Distributing is irreversible. Tokens sent to a wrong address cannot be recovered.
-                </span>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-
-        <RevealGroup className="mt-16 flex flex-wrap gap-3">
-          {cases.map((c) => (
-            <RevealItem key={c}>
-              <span className="inline-block rounded-full border border-border bg-background px-4 py-2.5 text-sm shadow-xs">
-                {c}
-              </span>
-            </RevealItem>
-          ))}
-        </RevealGroup>
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------- Live Distribution Timeline */
-/* Plain white, connected by a vertical line — illustrates the "Tracking"
-   pillar mechanically. Explicitly labelled as an example, exactly like the
-   Hero's execution table: this shows how tracking WORKS, it does not claim
-   to be a real live feed of actual product activity. */
-
-function LiveTimeline() {
-  const events = [
-    { t: "14:32:01", label: "Distribution created", state: "done" as const },
-    { t: "14:32:04", label: "Recipients committed onchain", state: "done" as const },
-    { t: "14:32:09", label: "Approved · 48,300 USDC", state: "done" as const },
-    { t: "14:32:14", label: "Batch 1 of 2 confirmed · 120 paid", state: "done" as const },
-    { t: "14:32:19", label: "Batch 2 of 2 confirmed · 116 paid, 4 failed", state: "warn" as const },
-    { t: "—", label: "Retry available for 4 failed payments", state: "pending" as const },
-  ];
-  return (
-    <section className="bg-background">
-      <div className="mx-auto w-full max-w-2xl px-6 py-28">
-        <Reveal>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Track every payment, in order.
-          </h2>
-          <p className="mt-4 text-charcoal-muted">
-            An illustrative example, not a live feed — this is the shape of every
-            distribution&apos;s timeline. Each step below is a real event type Distro emits onchain.
-          </p>
-        </Reveal>
-
-        <div className="relative mt-14 pl-8">
-          <div aria-hidden className="absolute top-1 bottom-1 left-[0.6875rem] w-px bg-border" />
-          <RevealGroup className="flex flex-col gap-8">
-            {events.map((e) => (
-              <RevealItem key={e.label} className="relative flex items-start gap-4">
-                <span
-                  className={
-                    "absolute -left-8 mt-1 size-3.5 rounded-full border-2 border-background " +
-                    (e.state === "done"
-                      ? "bg-success"
-                      : e.state === "warn"
-                        ? "bg-warning"
-                        : "bg-border")
-                  }
-                />
-                <div>
-                  <p className="font-mono text-xs text-charcoal-muted">{e.t}</p>
-                  <p className="mt-0.5 text-sm font-medium">{e.label}</p>
-                </div>
-              </RevealItem>
-            ))}
-          </RevealGroup>
-        </div>
       </div>
     </section>
   );

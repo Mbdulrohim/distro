@@ -10,7 +10,15 @@ import { useAuth } from "./use-auth";
  * control for every auth state — loading, signed-out, signing-in, signed-in —
  * and surfaces sign-in errors inline rather than via a transient toast.
  */
-export function ConnectWalletButton() {
+export function ConnectWalletButton({
+  label = "Connect Wallet",
+  size = "sm",
+}: {
+  /** Signed-out CTA text — callers on the marketing surface (e.g. the hero)
+   * override this to match their own copy ("Start Distribution"). */
+  label?: string;
+  size?: "sm" | "default" | "lg";
+}) {
   const {
     address,
     isAuthenticated,
@@ -24,7 +32,7 @@ export function ConnectWalletButton() {
 
   if (isSessionLoading) {
     return (
-      <Button variant="outline" size="sm" disabled>
+      <Button variant="outline" size={size} disabled>
         <Loader2 className="animate-spin" />
         Loading
       </Button>
@@ -40,7 +48,7 @@ export function ConnectWalletButton() {
         >
           {truncateAddress(address)}
         </span>
-        <Button variant="ghost" size="sm" onClick={() => signOut()} disabled={isSigningOut}>
+        <Button variant="ghost" size={size} onClick={() => signOut()} disabled={isSigningOut}>
           {isSigningOut ? <Loader2 className="animate-spin" /> : null}
           Disconnect
         </Button>
@@ -50,9 +58,9 @@ export function ConnectWalletButton() {
 
   return (
     <div className="flex flex-col items-end gap-1.5">
-      <Button size="sm" onClick={() => signIn().catch(() => {})} disabled={isSigningIn}>
+      <Button size={size} onClick={() => signIn().catch(() => {})} disabled={isSigningIn}>
         {isSigningIn ? <Loader2 className="animate-spin" /> : null}
-        {isSigningIn ? "Check your wallet…" : "Connect Wallet"}
+        {isSigningIn ? "Check your wallet…" : label}
       </Button>
       {signInError ? (
         <p className="max-w-64 text-right text-xs text-destructive">

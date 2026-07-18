@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, BookmarkPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TokenSelector } from "@/components/tokens/token-selector";
 import { RecipientManager } from "@/components/recipients/recipient-manager";
@@ -10,9 +10,11 @@ import { DistributionReview } from "@/components/distributions/distribution-revi
 import { useAccount } from "wagmi";
 import { isMultisendDeployed, getMultisendAddress } from "@/config/contracts";
 import { ExecutePanel } from "@/components/distributions/execute-panel";
-import type { TokenSelection } from "@/lib/tokens/types";
+import { formatAmount } from "@/lib/recipients/format";
+import type { TokenRef, TokenSelection } from "@/lib/tokens/types";
 import type { ValidRecipient } from "@/lib/recipients/types";
 import type { ScheduleDraft } from "@/lib/schedule/types";
+import type { TemplateDetail } from "@/lib/db/templates";
 
 type Step = "details" | "recipients" | "review";
 
@@ -37,6 +39,8 @@ const STEPS: { id: Step; label: string }[] = [
  */
 export function CreateFlow() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const templateId = searchParams.get("template");
   const { chainId } = useAccount();
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
@@ -46,6 +50,33 @@ export function CreateFlow() {
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [template, setTemplate] = useState<TemplateDetail | null>(null);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateSaved, setTemplateSaved] = useState(false);
+
+  // A template only pre-fills — it never auto-submits. The user still walks
+  // Token -> Recipients -> Review, so nothing sends without the same
+  // deliberate review every other distribution gets.
+  useEffect(() => {
+    if (!templateId) return;
+    let cancelled = false;
+    fetch(`/api/templates/${templateId}`, { credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Could not load that template.");
+        const body = (await res.json()) as { template: TemplateDetail };
+        if (cancelled) return;
+        setTemplate(body.template);
+        setName(body.template.name);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled)
+          setTemplateError(e instanceof Error ? e.message : "Failed to load template.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [templateId]);
 
   // Execute-now is the only mode the deployed stack supports; the scheduled
   // branch needs the escrow contracts.
@@ -104,6 +135,38 @@ export function CreateFlow() {
     }
   }
 
+  async function onSaveTemplate() {
+    if (!token?.address) return;
+    setSavingTemplate(true);
+    setTemplateError(null);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          name: name.trim(),
+          tokenAddress: token.address,
+          tokenSymbol: token.symbol,
+          tokenDecimals: token.decimals,
+          recipients: recipients.map((r) => ({
+            address: r.address,
+            amount: r.amount.toString(),
+          })),
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? "Could not save the template.");
+      }
+      setTemplateSaved(true);
+    } catch (e) {
+      setTemplateError(e instanceof Error ? e.message : "Could not save the template.");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
       <button
@@ -133,9 +196,18 @@ export function CreateFlow() {
               />
             </div>
 
+            {templateError ? (
+              <p className="rounded-md border border-destructive/30 bg-destructive-surface px-3 py-2 text-sm text-destructive">
+                {templateError}
+              </p>
+            ) : null}
+
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium">Token</span>
-              <TokenSelector onSelect={setToken} />
+              <TokenSelector
+                onSelect={setToken}
+                initialRef={template?.tokenAddress as TokenRef | undefined}
+              />
             </div>
 
             <div className="flex justify-end">
@@ -153,6 +225,10 @@ export function CreateFlow() {
               tokenSymbol={token.symbol}
               balance={token.balance}
               onChange={handleRecipients}
+              initialRows={template?.recipients.map((r) => ({
+                address: r.address,
+                amount: formatAmount(BigInt(r.amount), token.decimals),
+              }))}
             />
             <div className="flex justify-between">
               <Button variant="secondary" size="sm" onClick={() => setStep("details")}>
@@ -216,6 +292,37 @@ export function CreateFlow() {
                   {error}
                 </p>
               ) : null}
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={savingTemplate || templateSaved}
+                  onClick={onSaveTemplate}
+                >
+                  <BookmarkPlus />
+                  {templateSaved
+                    ? "Saved as template"
+                    : savingTemplate
+                      ? "Saving…"
+                      : "Save as template"}
+                </Button>
+                {templateError ? (
+                  <span className="text-xs text-destructive">{templateError}</span>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Saves the token and recipient list for reuse — not this run itself. Reuse it from{" "}
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/templates")}
+                  className="underline underline-offset-4 hover:text-foreground"
+                >
+                  Templates
+                </button>
+                .
+              </p>
+
               {chainId !== undefined && !isMultisendDeployed(chainId) ? (
                 <p className="text-xs text-muted-foreground">
                   Heads up: Distro isn&apos;t deployed on this network, so this distribution can be
