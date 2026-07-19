@@ -107,6 +107,29 @@ export default async function DistributionDetailPage({
               Duplicate as template
             </Link>
           ) : null}
+          {["submitted", "partially_completed", "failed"].includes(dist.status) ? (
+            <button
+              onClick={async () => {
+                if (!confirm("Reset to draft? This allows re-executing.")) return;
+                try {
+                  const res = await fetch(`/api/distributions/${dist.id}/reset`, {
+                    method: "POST",
+                    credentials: "same-origin",
+                  });
+                  if (res.ok) {
+                    window.location.reload();
+                  } else {
+                    alert("Failed to reset");
+                  }
+                } catch (e) {
+                  alert(`Error: ${e instanceof Error ? e.message : String(e)}`);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-surface"
+            >
+              Reset to draft
+            </button>
+          ) : null}
           <StatusBadge status={dist.status} count={failedCount} />
         </div>
       </div>
@@ -145,26 +168,33 @@ export default async function DistributionDetailPage({
       ) : null}
 
       {/* Draft distributions: ready to execute immediately */}
-      {dist.status === "draft" && dist.kind === "immediate" ? (
+      {dist.status === "draft" ? (
         <section className="mb-8">
           <h2 className="mb-2 text-sm font-medium">Execute</h2>
-          <ExecutePanel
-            distributionId={dist.id}
-            token={{
-              ref: dist.tokenAddress as `0x${string}`,
-              address: isAddress(dist.tokenAddress) ? (dist.tokenAddress as Address) : undefined,
-              isNative: dist.tokenAddress === "0x0000000000000000000000000000000000000000",
-              symbol: dist.tokenSymbol,
-              decimals: dist.tokenDecimals,
-              distributable: true,
-            }}
-            recipients={recipients.map((r, idx) => ({
-              line: idx + 1,
-              address: r.address as Address,
-              amount: BigInt(r.amount),
-              amountInput: String(Number(BigInt(r.amount)) / Math.pow(10, dist.tokenDecimals)),
-            }))}
-          />
+          {dist.kind === "immediate" ? (
+            <ExecutePanel
+              distributionId={dist.id}
+              token={{
+                ref: dist.tokenAddress as `0x${string}`,
+                address: isAddress(dist.tokenAddress) ? (dist.tokenAddress as Address) : undefined,
+                isNative: dist.tokenAddress === "0x0000000000000000000000000000000000000000",
+                symbol: dist.tokenSymbol,
+                decimals: dist.tokenDecimals,
+                distributable: true,
+              }}
+              recipients={recipients.map((r, idx) => ({
+                line: idx + 1,
+                address: r.address as Address,
+                amount: BigInt(r.amount),
+                amountInput: String(Number(BigInt(r.amount)) / Math.pow(10, dist.tokenDecimals)),
+              }))}
+            />
+          ) : (
+            <div className="rounded-lg border border-info/30 bg-info-surface px-4 py-3 text-sm text-info">
+              Scheduled distributions require fund() to be called from the create flow before
+              execution is available. Finish the creation process to fund and execute.
+            </div>
+          )}
         </section>
       ) : null}
 
