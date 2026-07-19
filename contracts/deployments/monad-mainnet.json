@@ -26,8 +26,9 @@
       "deployedAt": "2026-07-19",
       "bytecodeVerified": true,
       "audited": false,
-      "wiredIntoApp": false,
-      "notes": "UNAUDITED. Deployed at the user's explicit instruction, same non-custodial risk profile as Multisend (no owner, no admin, no privileged role, holds nothing between transactions -- see src/MultisendNative.sol and its 12-test suite). Bytecode verified live via cast code immediately after deployment. Not yet wired into web/src/config/contracts.ts -- that's the next step."
+      "wiredIntoApp": true,
+      "wiredIntoAppAt": "2026-07-19",
+      "notes": "UNAUDITED. Deployed at the user's explicit instruction, same non-custodial risk profile as Multisend (no owner, no admin, no privileged role, holds nothing between transactions -- see src/MultisendNative.sol and its test suite). Bytecode verified live via cast code immediately after deployment. Wired into web/src/config/contracts.ts the same day."
     }
   }
 }

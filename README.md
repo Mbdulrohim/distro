@@ -6,6 +6,10 @@
 
 Send tokens to hundreds of wallets — payroll, airdrops, rewards, grants, contributor payouts — from one automated workflow instead of hundreds of manual transactions.
 
+[![CI](https://github.com/tweetbysobur/distro/actions/workflows/ci.yml/badge.svg)](https://github.com/tweetbysobur/distro/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-6D5EF7)](LICENSE)
+[![Built on Monad](https://img.shields.io/badge/built%20on-Monad-6D5EF7)](https://monad.xyz)
+
 [Live app](https://getdistro.vercel.app) · [Docs](docs/) · [Contracts](contracts/src)
 
 </div>
@@ -70,7 +74,7 @@ distro/
 └── docs/         Product and technical specifications
 ```
 
-**Contracts** (Solidity + Foundry, 150+ tests):
+**Contracts** (Solidity + Foundry, 118 tests — 114 passing, 4 network-gated fork tests):
 
 | Contract                                       | Purpose                                                                        | Status                                                                                                                 |
 | ---------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
