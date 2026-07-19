@@ -14,6 +14,11 @@ import {
   X,
   FolderGit2,
   BadgeCheck,
+  Copy,
+  Coins,
+  RefreshCw,
+  PlusCircle,
+  CalendarClock,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { DistroMark } from "@/components/brand/distro-mark";
@@ -225,31 +230,39 @@ function StatePill({ state }: { state: "paid" | "failed" | "pending" }) {
 
 function Problem() {
   const pains = [
-    "Copy each wallet address by hand",
-    "Verify every one is correct",
-    "Enter amounts one at a time",
-    "Send the same transaction over and over",
-    "Track who's been paid in a spreadsheet",
-    "Chase and retry the failures yourself",
+    { icon: Copy, label: "Copy wallet addresses" },
+    { icon: ShieldCheck, label: "Verify addresses" },
+    { icon: Coins, label: "Enter amounts" },
+    { icon: Repeat, label: "Repeat transactions" },
+    { icon: Clock, label: "Track payment status" },
+    { icon: RefreshCw, label: "Retry failed transfers" },
+    { icon: FileText, label: "Keep records manually" },
   ];
   return (
     <section className="bg-light-purple">
       <div className="mx-auto w-full max-w-4xl px-6 py-28">
         <Reveal>
-          <h2 className="max-w-2xl text-[2rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-[2.75rem]">
-            Blockchain made transfers permissionless. It never made distribution efficient.
+          <p className="text-xs font-semibold tracking-[0.16em] text-primary-text uppercase">
+            The problem
+          </p>
+          <h2 className="mt-4 max-w-2xl text-[2rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-[2.75rem]">
+            Distributing assets onchain is still unnecessarily manual.
           </h2>
           <p className="mt-5 max-w-xl text-lg text-pretty text-charcoal-muted">
-            Paying a team, a cohort, or a community onchain still means doing the same thing by
-            hand, dozens or hundreds of times. It gets slower and more error-prone with every
-            recipient.
+            Teams repeatedly do the same repetitive steps by hand. As recipient lists grow, the
+            process becomes slower, more error-prone, and difficult to manage.
           </p>
         </Reveal>
-        <RevealGroup className="mt-12 grid gap-x-10 gap-y-4 sm:grid-cols-2">
-          {pains.map((p) => (
-            <RevealItem key={p} className="flex items-center gap-3 text-sm text-charcoal-muted">
-              <X className="size-4 shrink-0 text-charcoal-muted/60" />
-              <span className="line-through decoration-border">{p}</span>
+        <RevealGroup className="mt-12 grid gap-4 sm:grid-cols-2">
+          {pains.map(({ icon: Icon, label }) => (
+            <RevealItem
+              key={label}
+              className="flex items-center gap-3.5 rounded-lg border border-border/60 bg-background/60 px-4 py-3.5"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive-surface text-destructive">
+                <Icon className="size-4" />
+              </span>
+              <span className="text-sm font-medium text-charcoal-muted">{label}</span>
             </RevealItem>
           ))}
         </RevealGroup>
@@ -262,18 +275,43 @@ function Problem() {
 /* Plain white — after two tinted sections, this reads as the reset. */
 
 function Solution() {
+  const steps = [
+    { icon: PlusCircle, label: "Create a distribution" },
+    { icon: Upload, label: "Import recipients" },
+    { icon: Coins, label: "Select a token" },
+    { icon: CalendarClock, label: "Choose when to execute" },
+    { icon: Check, label: "Approve" },
+  ];
   return (
     <section className="bg-background">
       <div className="mx-auto w-full max-w-3xl px-6 py-28 text-center">
         <Reveal>
-          <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-            One distribution. Every recipient. Sent onchain, tracked to the last payment.
+          <p className="text-xs font-semibold tracking-[0.16em] text-primary-text uppercase">
+            The solution
+          </p>
+          <h2 className="mt-4 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+            Distro automates the entire distribution workflow.
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-lg text-pretty text-charcoal-muted">
-            Distro turns a repetitive, manual chore into a single workflow: create, import, review,
-            approve. It executes the transfers and shows you exactly what happened.
+            Distro securely executes the distribution onchain while tracking every payment in real
+            time.
           </p>
         </Reveal>
+        <RevealGroup className="mx-auto mt-12 flex max-w-2xl flex-wrap items-start justify-center gap-x-2 gap-y-8">
+          {steps.map(({ icon: Icon, label }, i) => (
+            <RevealItem key={label} className="flex items-center gap-2">
+              <span className="flex flex-col items-center gap-2.5">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-light-purple text-primary-text ring-1 ring-primary/15">
+                  <Icon className="size-5" />
+                </span>
+                <span className="w-20 text-xs font-medium text-charcoal-muted">{label}</span>
+              </span>
+              {i < steps.length - 1 ? (
+                <ArrowRight className="mt-[-1.25rem] size-4 shrink-0 text-border-strong" />
+              ) : null}
+            </RevealItem>
+          ))}
+        </RevealGroup>
       </div>
     </section>
   );
