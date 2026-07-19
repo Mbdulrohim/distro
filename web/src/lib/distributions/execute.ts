@@ -100,28 +100,48 @@ export async function* executeDistribution(
   // Only approve the exact total, and only if the existing allowance is
   // short. An unlimited approval would leave a standing claim on the user's
   // balance long after the distribution is done.
-  const allowance = await readContract(config, {
-    chainId,
-    address: token,
-    abi: erc20Abi,
-    functionName: "allowance",
-    args: [account, multisend],
-  });
+  let allowance: bigint;
+  try {
+    allowance = await readContract(config, {
+      chainId,
+      address: token,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [account, multisend],
+    });
+  } catch (error) {
+    throw new Error(
+      `Could not check token allowance: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   if (allowance >= total) {
     yield { type: "approve:skipped", reason: "already-approved" };
   } else {
     yield { type: "approve:required", amount: total };
     yield { type: "approve:signing" };
-    const approveTx = await writeContract(config, {
-      chainId,
-      address: token,
-      abi: erc20Abi,
-      functionName: "approve",
-      args: [multisend, total],
-    });
+    let approveTx: Hash;
+    try {
+      approveTx = await writeContract(config, {
+        chainId,
+        address: token,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [multisend, total],
+      });
+    } catch (error) {
+      throw new Error(
+        `Approval rejected or failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     yield { type: "approve:submitted", txHash: approveTx };
-    await waitForTransactionReceipt(config, { chainId, hash: approveTx });
+    try {
+      await waitForTransactionReceipt(config, { chainId, hash: approveTx });
+    } catch (error) {
+      throw new Error(
+        `Approval transaction failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     yield { type: "approve:confirmed", txHash: approveTx };
   }
 
@@ -131,13 +151,20 @@ export async function* executeDistribution(
   for (const batch of batches) {
     yield { type: "batch:signing", batchIndex: batch.index, total: batches.length };
 
-    const txHash = await writeContract(config, {
-      chainId,
-      address: multisend,
-      abi: multisendAbi,
-      functionName: "distribute",
-      args: [token, batch.payload],
-    });
+    let txHash: Hash;
+    try {
+      txHash = await writeContract(config, {
+        chainId,
+        address: multisend,
+        abi: multisendAbi,
+        functionName: "distribute",
+        args: [token, batch.payload],
+      });
+    } catch (error) {
+      throw new Error(
+        `Transaction rejected or failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     yield {
       type: "batch:submitted",
@@ -146,16 +173,49 @@ export async function* executeDistribution(
       txHash,
     };
 
-    const receipt = await waitForTransactionReceipt(config, { chainId, hash: txHash });
+    let receipt;
+    try {
+      console.log(`[Multisend] Waiting for receipt on chain ${chainId} for tx ${txHash}`);
+      receipt = await waitForTransactionReceipt(config, {
+        chainId,
+        hash: txHash,
+        timeout: 60_000, // 60 seconds to account for Monad block time
+      });
+      console.log(`[Multisend] Receipt received:`, {
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed?.toString(),
+        status: receipt.status,
+        logs: receipt.logs.length,
+      });
+    } catch (error) {
+      console.error(`[Multisend] waitForTransactionReceipt failed:`, error);
+      throw new Error(
+        `Transaction confirmation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    // Check if transaction reverted
+    if (receipt.status === "reverted") {
+      throw new Error(`Transaction reverted on chain. Check the explorer for details: ${txHash}`);
+    }
 
     // The receipt IS the source of truth. Decode both event types rather than
     // assuming success — per-recipient failure is a routine outcome here, not
     // an exception (one blocklisted address must not fail a payroll).
-    const logs = parseEventLogs({
-      abi: multisendAbi,
-      logs: receipt.logs,
-      eventName: ["Paid", "PaymentFailed"],
-    });
+    let logs;
+    try {
+      logs = parseEventLogs({
+        abi: multisendAbi,
+        logs: receipt.logs,
+        eventName: ["Paid", "PaymentFailed"],
+      });
+      console.log(`[Multisend] Parsed ${logs.length} events from receipt:`, logs);
+    } catch (error) {
+      console.error(`[Multisend] parseEventLogs failed:`, error);
+      throw new Error(
+        `Could not parse transaction receipt: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     const payments: PaymentResult[] = logs.map((log) => ({
       recipient: log.args.recipient as Address,
@@ -165,6 +225,9 @@ export async function* executeDistribution(
     }));
 
     const paid = payments.filter((p) => p.status === "paid");
+    console.log(
+      `[Multisend] Results: ${paid.length} paid, ${payments.length - paid.length} failed`,
+    );
 
     const result: BatchResult = {
       batchIndex: batch.index,

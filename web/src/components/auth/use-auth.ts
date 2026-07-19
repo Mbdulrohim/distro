@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useConnect, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { injected } from "wagmi/connectors/injected";
 import { createSiweMessage } from "viem/siwe";
 import { getAddress } from "viem";
 import { MONAD_MAINNET_CHAIN_ID, isSupportedChain } from "@/config/chains";

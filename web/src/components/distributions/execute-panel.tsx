@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useConfig, useAccount } from "wagmi";
 import { Loader2, Check, X, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,20 +23,98 @@ import type { TokenSelection } from "@/lib/tokens/types";
  * the run — the chain is the source of truth and the endpoint is idempotent, so
  * a retry can always reconcile. */
 async function persistBatch(distributionId: string, r: BatchResult): Promise<void> {
-  try {
-    await fetch(`/api/distributions/${distributionId}/results`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({
+  const maxRetries = 5;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const payload = {
         batchIndex: r.batchIndex,
         txHash: r.txHash,
-      }),
-    }).then((res) => {
-      if (!res.ok) throw new Error("Could not persist verified batch results.");
-    });
-  } catch (e) {
-    console.error("Failed to persist batch results; chain state is unaffected", e);
+      };
+      console.log(
+        `[ExecutePanel] Persisting batch ${r.batchIndex} (attempt ${attempt + 1}/${maxRetries}) to /api/distributions/${distributionId}/results`,
+        { payload, txHashLength: r.txHash.length, isValidHex: /^0x[0-9a-fA-F]+$/.test(r.txHash) },
+      );
+      const response = await fetch(`/api/distributions/${distributionId}/results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(
+          `[ExecutePanel] persistBatch failed with status ${response.status}: ${errorBody}`,
+        );
+
+        // 400 (validation/parsing) usually means "events not found" due to RPC lag
+        // 409 (conflict) means the batch already exists, which is fine
+        // 401/403 are auth issues that won't retry
+        if (response.status === 409) {
+          console.log(`[ExecutePanel] Batch already recorded (409), treating as success`);
+          return;
+        }
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(`Authentication error: ${errorBody}`);
+        }
+
+        // For 400s and 5xx errors, wait before retrying (RPC lag)
+        if (attempt < maxRetries - 1) {
+          const delayMs = 1000 * Math.pow(2, attempt); // exponential backoff: 1s, 2s, 4s, 8s
+          console.log(
+            `[ExecutePanel] Retrying in ${delayMs}ms (RPC may not have indexed events yet)`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        lastError = new Error(
+          `Could not persist verified batch results (${response.status}): ${errorBody.slice(0, 100)}`,
+        );
+        break;
+      }
+
+      console.log(`[ExecutePanel] Batch ${r.batchIndex} persisted successfully`);
+      forgetPendingTx(distributionId, r.batchIndex);
+      return;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (attempt < maxRetries - 1) {
+        const delayMs = 1000 * Math.pow(2, attempt);
+        console.log(`[ExecutePanel] Retrying in ${delayMs}ms after error:`, lastError.message);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  throw new Error(
+    `Transaction confirmed, but Distro could not sync the results yet. Use this tx hash to recover it: ${r.txHash}. ${
+      lastError?.message ?? ""
+    }`,
+  );
+}
+
+function pendingTxStorageKey(distributionId: string, batchIndex: number) {
+  return `distro:pending-tx:${distributionId}:batch:${batchIndex}`;
+}
+
+function rememberPendingTx(distributionId: string, batchIndex: number, txHash: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(pendingTxStorageKey(distributionId, batchIndex), txHash);
+  } catch {
+    // Best-effort recovery hint only; the chain receipt remains the source of truth.
+  }
+}
+
+function forgetPendingTx(distributionId: string, batchIndex: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(pendingTxStorageKey(distributionId, batchIndex));
+  } catch {
+    // Best-effort recovery hint only; never fail a confirmed sync for storage.
   }
 }
 
@@ -74,6 +153,7 @@ export function ExecutePanel({
 }: ExecutePanelProps) {
   // One source of truth for batch sizing, shared with DistributionReview.
   const effectiveBatchSize = batchSize ?? maxRecipientsPerBatch();
+  const router = useRouter();
   const config = useConfig();
   const { address: account, chainId } = useAccount();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -140,6 +220,7 @@ export function ExecutePanel({
           case "batch:submitted":
             setStatus(`Transaction ${ev.batchIndex + 1} of ${ev.total} submitted, waiting…`);
             setTxs((t) => [...t, { hash: ev.txHash, confirmed: false }]);
+            rememberPendingTx(distributionId, ev.batchIndex, ev.txHash);
             break;
           case "batch:confirmed":
             setTxs((t) =>
@@ -155,13 +236,16 @@ export function ExecutePanel({
             setStatus("");
             setPhase("done");
             onComplete?.(ev.results);
+            router.refresh();
             break;
         }
       }
     } catch (e) {
       // A wallet rejection is a choice, not a fault — say so calmly, and say
       // exactly who has and hasn't been paid.
-      setError(e instanceof Error ? e.message : "Execution failed.");
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      console.error("Distribution execution failed:", errorMessage, e);
+      setError(errorMessage);
       setPhase("error");
     }
   }

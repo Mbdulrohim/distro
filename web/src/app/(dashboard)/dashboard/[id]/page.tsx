@@ -11,7 +11,10 @@ import { RecipientResults } from "@/components/distributions/recipient-results";
 import { RetryPanel } from "@/components/distributions/retry-panel";
 import { ScheduledRetryPanel } from "@/components/distributions/scheduled-retry-panel";
 import { ExecuteScheduledChunksPanel } from "@/components/distributions/execute-scheduled-chunks-panel";
-import { isAddress } from "viem";
+import { ExecutePanel } from "@/components/distributions/execute-panel";
+import { ReconcileTransactionPanel } from "@/components/distributions/reconcile-transaction-panel";
+import { ResetDistributionButton } from "@/components/distributions/reset-distribution-button";
+import { isAddress, type Address } from "viem";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
 import { truncateAddress } from "@/lib/format";
 import { supportedChains } from "@/config/chains";
@@ -51,6 +54,9 @@ export default async function DistributionDetailPage({
 
   const explorer = supportedChains.find((c) => c.id === dist.chainId)?.blockExplorers?.default.url;
   const failedCount = summary.failed;
+  const pendingBatches = [
+    ...new Set(recipients.filter((r) => r.status === "pending").map((r) => r.batchIndex)),
+  ].sort((a, b) => a - b);
 
   // Shared grouping for the scheduled (escrow) path — chunk index = batch
   // index, position = index in batch. Built once here rather than separately
@@ -97,7 +103,20 @@ export default async function DistributionDetailPage({
             {new Date(dist.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <StatusBadge status={dist.status} count={failedCount} />
+        <div className="flex flex-wrap gap-2">
+          {dist.status === "draft" ? (
+            <Link
+              href={`/dashboard/new?template=${dist.id}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-surface"
+            >
+              Duplicate as template
+            </Link>
+          ) : null}
+          {dist.status === "failed" && summary.paid === 0 ? (
+            <ResetDistributionButton distributionId={dist.id} />
+          ) : null}
+          <StatusBadge status={dist.status} count={failedCount} />
+        </div>
       </div>
 
       {/* Summary — every figure counted from the rows, none assumed */}
@@ -130,6 +149,44 @@ export default async function DistributionDetailPage({
             executeAfter={dist.executeAfter}
             chunks={chunksByIndex.map(({ index, payload }) => ({ index, payload }))}
           />
+        </section>
+      ) : null}
+
+      {/* Draft distributions: ready to execute immediately */}
+      {dist.status === "draft" ? (
+        <section className="mb-8">
+          <h2 className="mb-2 text-sm font-medium">Execute</h2>
+          {dist.kind === "immediate" ? (
+            <ExecutePanel
+              distributionId={dist.id}
+              token={{
+                ref: dist.tokenAddress as `0x${string}`,
+                address: isAddress(dist.tokenAddress) ? (dist.tokenAddress as Address) : undefined,
+                isNative: dist.tokenAddress === "0x0000000000000000000000000000000000000000",
+                symbol: dist.tokenSymbol,
+                decimals: dist.tokenDecimals,
+                distributable: true,
+              }}
+              recipients={recipients.map((r, idx) => ({
+                line: idx + 1,
+                address: r.address as Address,
+                amount: BigInt(r.amount),
+                amountInput: String(Number(BigInt(r.amount)) / Math.pow(10, dist.tokenDecimals)),
+              }))}
+            />
+          ) : (
+            <div className="rounded-lg border border-info/30 bg-info-surface px-4 py-3 text-sm text-info">
+              Scheduled distributions require fund() to be called from the create flow before
+              execution is available. Finish the creation process to fund and execute.
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {dist.kind === "immediate" && pendingBatches.length > 0 ? (
+        <section>
+          <h2 className="mb-2 text-sm font-medium">Sync transaction</h2>
+          <ReconcileTransactionPanel distributionId={dist.id} pendingBatches={pendingBatches} />
         </section>
       ) : null}
 

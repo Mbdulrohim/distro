@@ -36,20 +36,35 @@ export async function verifyDistributionReceipt(args: {
   batchIndex: number;
 }): Promise<{ blockNumber: string; gasUsed: string; payments: VerifiedPayment[] }> {
   const client = clientFor(args.chainId);
+  console.log(`[verifyDistributionReceipt] Fetching transaction and receipt for ${args.txHash}`);
   const [transaction, receipt] = await Promise.all([
     client.getTransaction({ hash: args.txHash }),
     client.getTransactionReceipt({ hash: args.txHash }),
   ]);
+
+  console.log(`[verifyDistributionReceipt] Retrieved receipt:`, {
+    status: receipt.status,
+    blockNumber: receipt.blockNumber,
+    logCount: receipt.logs.length,
+    txTo: transaction.to,
+    expectedContract: args.contract,
+  });
 
   if (
     receipt.status !== "success" ||
     !transaction.to ||
     getAddress(transaction.to) !== getAddress(args.contract)
   ) {
-    throw new Error("Transaction was not a successful call to this distribution contract.");
+    throw new Error(
+      `Transaction was not a successful call to this distribution contract. Status: ${receipt.status}, TX to: ${transaction.to}, expected: ${args.contract}`,
+    );
   }
 
   const logs = receipt.logs.filter((log) => getAddress(log.address) === getAddress(args.contract));
+  console.log(
+    `[verifyDistributionReceipt] Filtered to ${logs.length} logs from contract ${args.contract}`,
+  );
+
   const abi =
     args.kind === "scheduled"
       ? distributionAbi
@@ -57,6 +72,7 @@ export async function verifyDistributionReceipt(args: {
         ? multisendNativeAbi
         : multisendAbi;
   const decoded = parseEventLogs({ abi, logs, eventName: ["Paid", "PaymentFailed"] });
+  console.log(`[verifyDistributionReceipt] Decoded ${decoded.length} events:`, decoded);
 
   const payments = decoded.map((log) => {
     const status = log.eventName === "Paid" ? ("paid" as const) : ("failed" as const);

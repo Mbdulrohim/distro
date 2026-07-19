@@ -59,14 +59,21 @@ export async function* executeNativeDistribution(
 
     yield { type: "batch:signing", batchIndex: batch.index, total: batches.length };
 
-    const txHash = await writeContract(config, {
-      chainId,
-      address: multisendNative,
-      abi: multisendNativeAbi,
-      functionName: "distribute",
-      args: [batch.payload],
-      value: batchTotal,
-    });
+    let txHash;
+    try {
+      txHash = await writeContract(config, {
+        chainId,
+        address: multisendNative,
+        abi: multisendNativeAbi,
+        functionName: "distribute",
+        args: [batch.payload],
+        value: batchTotal,
+      });
+    } catch (error) {
+      throw new Error(
+        `Transaction rejected or failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     yield {
       type: "batch:submitted",
@@ -75,13 +82,46 @@ export async function* executeNativeDistribution(
       txHash,
     };
 
-    const receipt = await waitForTransactionReceipt(config, { chainId, hash: txHash });
+    let receipt;
+    try {
+      console.log(`[MultisendNative] Waiting for receipt on chain ${chainId} for tx ${txHash}`);
+      receipt = await waitForTransactionReceipt(config, {
+        chainId,
+        hash: txHash,
+        timeout: 60_000, // 60 seconds to account for Monad block time
+      });
+      console.log(`[MultisendNative] Receipt received:`, {
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed?.toString(),
+        status: receipt.status,
+        logs: receipt.logs.length,
+      });
+    } catch (error) {
+      console.error(`[MultisendNative] waitForTransactionReceipt failed:`, error);
+      throw new Error(
+        `Transaction confirmation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
-    const logs = parseEventLogs({
-      abi: multisendNativeAbi,
-      logs: receipt.logs,
-      eventName: ["Paid", "PaymentFailed"],
-    });
+    // Check if transaction reverted
+    if (receipt.status === "reverted") {
+      throw new Error(`Transaction reverted on chain. Check the explorer for details: ${txHash}`);
+    }
+
+    let logs;
+    try {
+      logs = parseEventLogs({
+        abi: multisendNativeAbi,
+        logs: receipt.logs,
+        eventName: ["Paid", "PaymentFailed"],
+      });
+      console.log(`[MultisendNative] Parsed ${logs.length} events from receipt:`, logs);
+    } catch (error) {
+      console.error(`[MultisendNative] parseEventLogs failed:`, error);
+      throw new Error(
+        `Could not parse transaction receipt: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     const payments: PaymentResult[] = logs.map((log) => ({
       recipient: log.args.recipient as Address,
@@ -91,6 +131,9 @@ export async function* executeNativeDistribution(
     }));
 
     const paid = payments.filter((p) => p.status === "paid");
+    console.log(
+      `[MultisendNative] Results: ${paid.length} paid, ${payments.length - paid.length} failed`,
+    );
 
     const result: BatchResult = {
       batchIndex: batch.index,

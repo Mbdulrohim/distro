@@ -7,7 +7,10 @@ import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
 import { db } from "@/lib/db/client";
-import { verifyDistributionReceipt } from "@/lib/distributions/verify-receipt";
+import {
+  verifyDistributionReceipt,
+  type VerifiedPayment,
+} from "@/lib/distributions/verify-receipt";
 
 const resultSchema = z.object({
   batchIndex: z.number().int().min(0),
@@ -21,6 +24,78 @@ interface DistributionRow {
   kind: "immediate" | "scheduled";
   multisend_address: string | null;
   escrow_address: string | null;
+}
+
+type ExpectedRecipient = {
+  id: string;
+  index_in_batch: number;
+  address: string;
+  amount: string;
+};
+
+type MatchedPayment = {
+  payment: VerifiedPayment;
+  row: ExpectedRecipient;
+};
+
+function shortAddress(address: string): string {
+  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+}
+
+function mismatchPayload(expected: ExpectedRecipient[], payments: VerifiedPayment[]) {
+  return {
+    error: "Receipt payment does not match committed recipients.",
+    expected: expected.map((row) => ({
+      index: row.index_in_batch,
+      address: shortAddress(row.address),
+      amount: row.amount,
+    })),
+    receipt: payments.map((payment) => ({
+      index: payment.index,
+      address: shortAddress(payment.recipient),
+      amount: payment.amount,
+      status: payment.status,
+    })),
+  };
+}
+
+/**
+ * Primary mapping is the contract event index. If a legacy/browser flow sent
+ * the right recipients but the saved row positions drifted, fall back to an
+ * exact address+amount match. That still refuses to mark someone paid unless
+ * the mined receipt proves that same recipient and amount was included.
+ */
+function matchPaymentsToRows(
+  expected: ExpectedRecipient[],
+  payments: VerifiedPayment[],
+): MatchedPayment[] | null {
+  const byIndex = payments.map((payment) => {
+    const row = expected.find((candidate) => candidate.index_in_batch === payment.index);
+    if (!row) return null;
+    return { payment, row };
+  });
+
+  if (byIndex.every((match): match is MatchedPayment => match !== null)) {
+    const indexMatched = byIndex.every(({ payment, row }) => {
+      return getAddress(row.address) === payment.recipient && row.amount === payment.amount;
+    });
+    if (indexMatched) return byIndex;
+  }
+
+  const used = new Set<string>();
+  const byContent: MatchedPayment[] = [];
+  for (const payment of payments) {
+    const row = expected.find((candidate) => {
+      if (used.has(candidate.id)) return false;
+      return (
+        getAddress(candidate.address) === payment.recipient && candidate.amount === payment.amount
+      );
+    });
+    if (!row) return null;
+    used.add(row.id);
+    byContent.push({ payment, row });
+  }
+  return byContent;
 }
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -66,6 +141,18 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   let verified;
   try {
+    console.log(`[/api/distributions/[id]/results] Verifying receipt:`, {
+      chainId: dist.chain_id,
+      txHash,
+      contract,
+      kind:
+        dist.kind === "scheduled"
+          ? "scheduled"
+          : dist.token_address === "0x0000000000000000000000000000000000000000"
+            ? "immediate-native"
+            : "immediate-erc20",
+      batchIndex,
+    });
     verified = await verifyDistributionReceipt({
       chainId: dist.chain_id,
       txHash: txHash as `0x${string}`,
@@ -78,7 +165,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
             : "immediate-erc20",
       batchIndex,
     });
+    console.log(`[/api/distributions/[id]/results] Receipt verified successfully:`, verified);
   } catch (error) {
+    console.error(
+      `[/api/distributions/[id]/results] verifyDistributionReceipt failed:`,
+      error instanceof Error ? error.message : String(error),
+    );
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not verify transaction receipt." },
       { status: 400 },
@@ -98,14 +190,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       { status: 409 },
     );
   }
-  for (const payment of verified.payments) {
-    const row = expected.find((candidate) => candidate.index_in_batch === payment.index);
-    if (!row || getAddress(row.address) !== payment.recipient || row.amount !== payment.amount) {
-      return NextResponse.json(
-        { error: "Receipt payment does not match committed recipients." },
-        { status: 409 },
-      );
-    }
+  const matched = matchPaymentsToRows(expected, verified.payments);
+  if (!matched) {
+    return NextResponse.json(mismatchPayload(expected, verified.payments), { status: 409 });
   }
 
   const existing = (await sql`
@@ -124,6 +211,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   const transactionId = prior?.id ?? randomUUID();
   const now = new Date().toISOString();
+  console.log(
+    `[/api/distributions/[id]/results] Recording ${matched.length} matched recipient results`,
+  );
   try {
     await sql.transaction((tx) => [
       tx`
@@ -141,8 +231,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
           gas_used = EXCLUDED.gas_used,
           mined_at = EXCLUDED.mined_at
       `,
-      ...verified.payments.map(
-        (payment) => tx`
+      ...matched.map(
+        ({ payment, row }) => tx`
         UPDATE recipients SET
           transaction_id = ${transactionId},
           status = ${payment.status}::recipient_status,
@@ -154,7 +244,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
           }
         WHERE distribution_id = ${id}
           AND batch_index = ${batchIndex}
-          AND index_in_batch = ${payment.index}
+          AND id = ${row.id}
       `,
       ),
     ]);
@@ -162,6 +252,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     console.error("Failed to record distribution results", error);
     return NextResponse.json({ error: "Could not record results." }, { status: 500 });
   }
+
+  console.log(
+    `[/api/distributions/[id]/results] Transaction ${transactionId} and recipient results recorded`,
+  );
 
   const counts = (await sql`
     SELECT
