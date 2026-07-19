@@ -76,6 +76,7 @@ async function persistBatch(distributionId: string, r: BatchResult): Promise<voi
       }
 
       console.log(`[ExecutePanel] Batch ${r.batchIndex} persisted successfully`);
+      forgetPendingTx(distributionId, r.batchIndex);
       return;
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
@@ -87,11 +88,33 @@ async function persistBatch(distributionId: string, r: BatchResult): Promise<voi
     }
   }
 
-  // After all retries, log but don't fail — transaction is on-chain already
-  console.error(
-    "[ExecutePanel] Failed to persist batch results after 5 retries; chain state is unaffected",
-    lastError,
+  throw new Error(
+    `Transaction confirmed, but Distro could not sync the results yet. Use this tx hash to recover it: ${r.txHash}. ${
+      lastError?.message ?? ""
+    }`,
   );
+}
+
+function pendingTxStorageKey(distributionId: string, batchIndex: number) {
+  return `distro:pending-tx:${distributionId}:batch:${batchIndex}`;
+}
+
+function rememberPendingTx(distributionId: string, batchIndex: number, txHash: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(pendingTxStorageKey(distributionId, batchIndex), txHash);
+  } catch {
+    // Best-effort recovery hint only; the chain receipt remains the source of truth.
+  }
+}
+
+function forgetPendingTx(distributionId: string, batchIndex: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(pendingTxStorageKey(distributionId, batchIndex));
+  } catch {
+    // Best-effort recovery hint only; never fail a confirmed sync for storage.
+  }
 }
 
 /**
@@ -195,6 +218,7 @@ export function ExecutePanel({
           case "batch:submitted":
             setStatus(`Transaction ${ev.batchIndex + 1} of ${ev.total} submitted, waiting…`);
             setTxs((t) => [...t, { hash: ev.txHash, confirmed: false }]);
+            rememberPendingTx(distributionId, ev.batchIndex, ev.txHash);
             break;
           case "batch:confirmed":
             setTxs((t) =>

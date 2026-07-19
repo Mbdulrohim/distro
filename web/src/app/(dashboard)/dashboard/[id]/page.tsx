@@ -12,6 +12,7 @@ import { RetryPanel } from "@/components/distributions/retry-panel";
 import { ScheduledRetryPanel } from "@/components/distributions/scheduled-retry-panel";
 import { ExecuteScheduledChunksPanel } from "@/components/distributions/execute-scheduled-chunks-panel";
 import { ExecutePanel } from "@/components/distributions/execute-panel";
+import { ReconcileTransactionPanel } from "@/components/distributions/reconcile-transaction-panel";
 import { isAddress, type Address } from "viem";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
 import { truncateAddress } from "@/lib/format";
@@ -52,6 +53,9 @@ export default async function DistributionDetailPage({
 
   const explorer = supportedChains.find((c) => c.id === dist.chainId)?.blockExplorers?.default.url;
   const failedCount = summary.failed;
+  const pendingBatches = [
+    ...new Set(recipients.filter((r) => r.status === "pending").map((r) => r.batchIndex)),
+  ].sort((a, b) => a - b);
 
   // Shared grouping for the scheduled (escrow) path — chunk index = batch
   // index, position = index in batch. Built once here rather than separately
@@ -195,6 +199,13 @@ export default async function DistributionDetailPage({
               execution is available. Finish the creation process to fund and execute.
             </div>
           )}
+        </section>
+      ) : null}
+
+      {dist.kind === "immediate" && pendingBatches.length > 0 ? (
+        <section>
+          <h2 className="mb-2 text-sm font-medium">Sync transaction</h2>
+          <ReconcileTransactionPanel distributionId={dist.id} pendingBatches={pendingBatches} />
         </section>
       ) : null}
 
