@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useConfig, useAccount } from "wagmi";
 import { Loader2, Check, X, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,7 @@ export function ExecutePanel({
 }: ExecutePanelProps) {
   // One source of truth for batch sizing, shared with DistributionReview.
   const effectiveBatchSize = batchSize ?? maxRecipientsPerBatch();
+  const router = useRouter();
   const config = useConfig();
   const { address: account, chainId } = useAccount();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -234,6 +236,7 @@ export function ExecutePanel({
             setStatus("");
             setPhase("done");
             onComplete?.(ev.results);
+            router.refresh();
             break;
         }
       }
