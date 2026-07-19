@@ -93,12 +93,12 @@ function Hero() {
           <div className="flex flex-col gap-7">
             <MonadBadge />
             <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl lg:text-[4.5rem]">
-              Onchain distribution engine
+              <span className="text-primary">Onchain</span> distribution engine
             </h1>
             <p className="max-w-md text-lg text-pretty text-charcoal-muted">
               Distro is an onchain distribution platform that helps teams automate token payouts at
-              scale. Upload recipients, choose a token, schedule execution, and let Distro handle
-              every distribution securely on Monad.
+              scale. Create a distribution, upload recipients, choose a token, and schedule
+              execution — Distro handles every payment securely on Monad.
             </p>
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <ConnectWalletButton label="Start Distribution" size="lg" />
