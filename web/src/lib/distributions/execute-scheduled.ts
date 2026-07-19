@@ -180,23 +180,6 @@ export async function* createScheduledDistribution(
   yield { type: "done", distribution };
 }
 
-/** The escrow address `createScheduledDistribution` would produce — before it exists. */
-export async function predictScheduledAddress(
-  config: Config,
-  chainId: number,
-  factory: Address,
-  account: Address,
-  salt: `0x${string}`,
-): Promise<Address> {
-  return readContract(config, {
-    chainId,
-    address: factory,
-    abi: distributionFactoryAbi,
-    functionName: "predictAddress",
-    args: [account, salt],
-  });
-}
-
 /**
  * Running an already-scheduled distribution: `executeChunk` per chunk not
  * yet executed, once `executeAfter` has arrived. Permissionless on-chain —

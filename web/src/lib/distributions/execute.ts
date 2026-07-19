@@ -1,5 +1,5 @@
 import type { Config } from "wagmi";
-import { writeContract, waitForTransactionReceipt, readContract, estimateGas } from "wagmi/actions";
+import { writeContract, waitForTransactionReceipt, readContract } from "wagmi/actions";
 import { parseEventLogs, erc20Abi, type Hash, type Address } from "viem";
 import { multisendAbi } from "@/lib/contracts/multisend-abi";
 import { encodePayload } from "@/lib/recipients/encode";
@@ -182,32 +182,4 @@ export async function* executeDistribution(
   }
 
   yield { type: "done", results };
-}
-
-/**
- * Recipients that failed, ready to be retried.
- *
- * Retry needs no contract support: a failed payment simply never happened —
- * the tokens are still in the sender's wallet — so retrying is just another
- * `distribute` with the failed subset.
- */
-export function failedEntries(results: BatchResult[]): PaymentResult[] {
-  return results.flatMap((r) => r.payments.filter((p) => p.status === "failed"));
-}
-
-/** Estimate gas for one batch, for the review screen. */
-export async function estimateBatchGas(
-  config: Config,
-  chainId: number,
-  multisend: Address,
-  token: Address,
-  account: Address,
-  payload: `0x${string}`,
-): Promise<bigint> {
-  return estimateGas(config, {
-    chainId,
-    account,
-    to: multisend,
-    data: payload,
-  });
 }

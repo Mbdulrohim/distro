@@ -1,59 +1,107 @@
+<div align="center">
+
 # Distro
 
-**Onchain distribution engine for Monad.** Pay many wallets at once — payroll, rewards, grants, contributor payouts — from a single automated workflow instead of repeating transactions by hand.
+**The onchain distribution engine for Monad.**
 
-Distro is a **push** system: the sender distributes, recipients receive tokens and never transact. There is no claim step. See [docs/PRD.md](docs/PRD.md) for the full product definition.
+Send tokens to hundreds of wallets — payroll, airdrops, rewards, grants, contributor payouts — from one automated workflow instead of hundreds of manual transactions.
 
-> **Status:** pre-launch. Wallet auth and the MVP `Multisend` contract are built; the distribution dashboard is next. See [docs/ROADMAP.md](docs/ROADMAP.md).
+[Live app](https://getdistro.vercel.app) · [Docs](docs/) · [Contracts](contracts/src)
 
-## What it does
+</div>
 
-1. Create a distribution and import recipients (CSV: `address,amount`).
-2. Select an ERC-20 token; the dashboard validates addresses, amounts, and your balance.
-3. Review the full committed state — irreversible actions are labelled as such.
-4. Approve, and Distro executes the distribution onchain, tracking every payment.
+---
 
-One blocklisted or failing recipient never reverts the run for everyone else; failures are isolated and retryable.
+## Why Distro exists
 
-## Stack
+Blockchain made transferring assets permissionless. It never made _distributing_ them efficient.
 
-- **Contracts** — Solidity + Foundry, Monad Mainnet (chain id 143). `contracts/`
-- **Frontend** — Next.js 15 (App Router), TypeScript, Tailwind, shadcn/ui, wagmi/viem. `web/`
-- **Auth** — SIWE (Sign-In With Ethereum) → stateless JWT session. Not RainbowKit, not Para.
-- **Data** — Supabase (Postgres) as an index/cache over onchain state; the chain is the source of truth.
+Paying a team, a community, or a set of contributors onchain still means doing the same thing by hand, once per recipient: copy an address, verify it, enter an amount, sign a transaction, track whether it landed, retry it if it didn't. That process gets slower and more error-prone with every name added to the list.
 
-## Repo layout
+Distro turns it into one workflow: **create a distribution, import recipients, choose a token, decide when it runs, approve.** Distro executes onchain and tracks every payment, so "did everyone get paid?" always has a precise answer.
+
+## What Distro is — and isn't
+
+| Distro **is**                        | Distro is **not**   |
+| ------------------------------------ | ------------------- |
+| A distribution platform              | A wallet            |
+| An automation tool for recurring pay | An exchange         |
+| A payment scheduler                  | A bridge            |
+| A payroll engine                     | A bank              |
+| A reward-distribution system         | A custodian         |
+| Treasury distribution infrastructure | A portfolio tracker |
+
+Distro is a **push** system: the sender distributes, and recipients simply receive — there's no claim step, no eligibility portal, no vesting contract for them to interact with.
+
+## Product pillars
+
+- **Distribution** — send a token to many recipients efficiently, in one workflow. One blocked or failing address never stops the rest of the run.
+- **Scheduling** — execute now, or commit a distribution onchain to run at a future date and time, permissionlessly.
+- **Automation** — turn a recurring payout into a repeatable workflow instead of rebuilding a recipient list every cycle.
+- **Tracking** — know exactly who's been paid, when, and see every transaction verified onchain.
+
+## Who it's for
+
+**Primary** — Web3 startups, DAO contributors, community managers, NFT projects, token issuers.
+**Secondary** — hackathon organizers, payroll teams, grant programs, freelancer agencies, creator communities.
+
+**Use cases:** monthly payroll · community rewards · airdrops · bug bounty payouts · hackathon prizes · grant distributions · creator revenue sharing · affiliate payouts · scholarship payments · DAO contributor compensation.
+
+## Why Monad
+
+Large-scale distributions need fast execution, low transaction costs, and high throughput — exactly what Monad's parallelized EVM provides. It's what lets Distro process a 200-recipient payroll run or a bulk airdrop without the cost or latency becoming the product's bottleneck, while staying fully Ethereum-tool-compatible (Solidity, Foundry, viem/wagmi — no new language, no new wallet).
+
+## How it works
+
+1. **Create** a distribution and give it a name.
+2. **Import recipients** — upload a CSV or paste a list. Every address is validated and duplicates are flagged before you commit.
+3. **Select a token** — any ERC-20, or native MON.
+4. **Choose when it executes** — immediately, or scheduled for later.
+5. **Review** the exact recipient count, total, and gas estimate — nothing sends until you approve it.
+6. **Approve.** Distro executes onchain and tracks every payment in real time, with each transaction verifiable on the block explorer.
+
+## Architecture
 
 ```
 distro/
-├── contracts/    # Foundry — Multisend (MVP), escrow (scheduling, later)
-├── web/          # Next.js 15 — marketing + dashboard + API routes
-├── supabase/     # config + migrations
-├── docs/         # product & technical specs (see below)
-├── PRODUCT.md    # impeccable's strategic design context
-├── DESIGN.md     # impeccable's visual system
-└── CLAUDE.md     # working context for Claude Code
+├── contracts/    Foundry — Multisend, MultisendNative, Distribution/DistributionFactory (escrow)
+├── web/          Next.js 15 — marketing site, dashboard, API routes
+├── supabase/     Postgres schema + migrations (index/cache over onchain state)
+└── docs/         Product and technical specifications
 ```
+
+**Contracts** (Solidity + Foundry, 150+ tests):
+
+| Contract                                       | Purpose                                                                        | Status                                                                                                                 |
+| ---------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `Multisend.sol`                                | Immediate ERC-20 distribution, stateless                                       | **Live on Monad mainnet & testnet**                                                                                    |
+| `MultisendNative.sol`                          | Immediate native-MON distribution, stateless                                   | **Live on Monad mainnet & testnet**                                                                                    |
+| `Distribution.sol` / `DistributionFactory.sol` | Scheduled distribution — escrow, permissionless execution, native MON + ERC-20 | Built and tested, **not yet deployed** — blocked on an external audit (see [docs/AUDIT_SCOPE.md](docs/AUDIT_SCOPE.md)) |
+
+Both live contracts are stateless and non-custodial by construction: tokens move directly from sender to recipient in the same transaction, so the contract's balance is always zero and a bug in transfer logic can, at worst, cause a failed send — never a stolen or stranded fund. The escrow contract is a different risk category (it holds funds between scheduling and execution), which is exactly why it stays unaudited-and-undeployed until that gap is closed.
+
+**Frontend** — Next.js 15 (App Router), TypeScript, Tailwind, shadcn/ui, wagmi/viem, Framer Motion.
+**Auth** — Sign-In With Ethereum (SIWE) → stateless JWT session. No third-party wallet-auth provider.
+**Data** — Supabase (Postgres) as an index/cache over onchain state; the chain is always the source of truth for what actually happened.
+
+## Landing page
+
+Hero · Problem · Solution · How It Works · Features · Templates · Use Cases · Security · Why Monad · FAQ · CTA · Footer — each section carries its own visual identity rather than repeating the same white block down the page.
 
 ## Documentation
 
-| File                                                             | What it covers                                                                                            |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [docs/PRD.md](docs/PRD.md)                                       | Product definition, scope, success metrics                                                                |
-| [docs/FEATURES.md](docs/FEATURES.md)                             | Feature set, mapped to the four product pillars                                                           |
-| [docs/USER_FLOW.md](docs/USER_FLOW.md)                           | Step-by-step flows and the failure states that need designing                                             |
-| [docs/CONTRACT_ARCHITECTURE.md](docs/CONTRACT_ARCHITECTURE.md)   | Contract-system design across both contracts (responsibilities, storage, events, gas, security, upgrades) |
-| [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md)                   | Escrow contract's normative spec (state machine, invariants)                                              |
-| [docs/DATABASE.md](docs/DATABASE.md)                             | Supabase schema, RLS policies, indexes                                                                    |
-| [docs/API.md](docs/API.md)                                       | Route handlers backing the dashboard                                                                      |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                     | Full system architecture and the reasoning behind each decision                                           |
-| [docs/UX_SPEC.md](docs/UX_SPEC.md)                               | Every journey, screen, and state (empty/loading/error/success) for the MVP                                |
-| [docs/WIREFRAMES.md](docs/WIREFRAMES.md)                         | ASCII wireframes for every page                                                                           |
-| [docs/ROADMAP.md](docs/ROADMAP.md)                               | Phasing and the decisions that block each phase                                                           |
-| [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) | Feature-by-feature build plan (goal, deps, files, tests, DoD)                                             |
-| [docs/BRAND.md](docs/BRAND.md)                                   | Name, voice, vocabulary                                                                                   |
-| [docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md)       | Adversarial review — the _why_ behind the contract's shape                                                |
-| [docs/CTO_REVIEW.md](docs/CTO_REVIEW.md)                         | Scope and product-fit review                                                                              |
+| Doc                                                            | Covers                                                                   |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [docs/PRD.md](docs/PRD.md)                                     | Product definition, scope, success metrics                               |
+| [docs/FEATURES.md](docs/FEATURES.md)                           | Feature set, mapped to the four product pillars                          |
+| [docs/CONTRACT_ARCHITECTURE.md](docs/CONTRACT_ARCHITECTURE.md) | Contract-system design: responsibilities, storage, events, gas, security |
+| [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md)                 | The escrow contract's normative spec — state machine, invariants         |
+| [docs/AUDIT_SCOPE.md](docs/AUDIT_SCOPE.md)                     | What an external audit of the escrow contract needs to cover             |
+| [docs/DATABASE.md](docs/DATABASE.md)                           | Supabase schema, RLS policies, indexes                                   |
+| [docs/API.md](docs/API.md)                                     | Route handlers backing the dashboard                                     |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                   | Full system architecture and the reasoning behind each decision          |
+| [docs/ROADMAP.md](docs/ROADMAP.md)                             | Phasing and the decisions that gate each phase                           |
+| [docs/BRAND.md](docs/BRAND.md)                                 | Name, voice, vocabulary                                                  |
 
 ## Development
 
@@ -73,11 +121,15 @@ npm install
 npm run dev
 ```
 
-Copy [.env.example](.env.example) to `web/.env.local` and fill in Supabase, RPC, and session values before running the app. Never commit a filled-in env file.
+Copy [.env.example](.env.example) to `web/.env.local` and fill in your Supabase project, RPC, and session values before running the app. Never commit a filled-in env file.
 
 ## Conventions
 
-- Build on OpenZeppelin; never reimplement token/access-control primitives.
-- Never hardcode a Monad token/contract address — verify via the monskills `addresses` skill.
-- Chain data comes from viem's built-in `monad` chain; chain ids are protocol facts, not config.
-- Deployments go through a Safe multisig, never a bare EOA key.
+- Build on OpenZeppelin; never reimplement token or access-control primitives.
+- Never hardcode a Monad token or contract address — verify against the canonical registry before adding one.
+- Chain data comes from viem's built-in `monad` chain definition; chain IDs are protocol facts, not configuration.
+- A contract that holds funds between transactions doesn't reach mainnet without an external audit — no exceptions. A stateless, non-custodial contract can be deployed under an explicit, reasoned exception to that rule; the reasoning has to hold up on its own, not just "it seemed fine."
+
+## License
+
+MIT — see [LICENSE](LICENSE).

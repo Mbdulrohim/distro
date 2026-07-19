@@ -1,5 +1,5 @@
 import type { Config } from "wagmi";
-import { writeContract, waitForTransactionReceipt, estimateGas } from "wagmi/actions";
+import { writeContract, waitForTransactionReceipt } from "wagmi/actions";
 import { parseEventLogs, type Address } from "viem";
 import { multisendNativeAbi } from "@/lib/contracts/multisend-native-abi";
 import { encodePayload } from "@/lib/recipients/encode";
@@ -108,16 +108,4 @@ export async function* executeNativeDistribution(
   }
 
   yield { type: "done", results };
-}
-
-/** Estimate gas for one native batch, for the review screen. */
-export async function estimateNativeBatchGas(
-  config: Config,
-  chainId: number,
-  multisendNative: Address,
-  account: Address,
-  payload: `0x${string}`,
-  value: bigint,
-): Promise<bigint> {
-  return estimateGas(config, { chainId, account, to: multisendNative, data: payload, value });
 }
