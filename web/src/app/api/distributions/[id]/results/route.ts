@@ -170,9 +170,18 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: "Could not record the transaction." }, { status: 500 });
   }
 
+  console.log(`[/api/distributions/[id]/results] Transaction recorded with id: ${tx.id}`);
+  console.log(
+    `[/api/distributions/[id]/results] About to update ${verified.payments.length} recipients:`,
+    verified.payments,
+  );
+
   // Update each recipient by POSITION. Matching on address would corrupt a
   // distribution that intentionally pays one address twice.
   for (const p of verified.payments) {
+    console.log(
+      `[/api/distributions/[id]/results] Updating recipient at index ${p.index} with status ${p.status}`,
+    );
     const { error } = await supabase
       .from("recipients")
       .update({
@@ -192,6 +201,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       console.error("Failed to update recipient", { batchIndex, index: p.index, error });
       return NextResponse.json({ error: "Could not record results." }, { status: 500 });
     }
+
+    console.log(
+      `[/api/distributions/[id]/results] Successfully updated recipient at index ${p.index}`,
+    );
   }
 
   // Derive the distribution's status from what actually landed, counted in the
