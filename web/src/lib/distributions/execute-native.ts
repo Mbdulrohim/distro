@@ -84,11 +84,28 @@ export async function* executeNativeDistribution(
 
     let receipt;
     try {
-      receipt = await waitForTransactionReceipt(config, { chainId, hash: txHash });
+      console.log(`[MultisendNative] Waiting for receipt on chain ${chainId} for tx ${txHash}`);
+      receipt = await waitForTransactionReceipt(config, {
+        chainId,
+        hash: txHash,
+        timeout: 60_000, // 60 seconds to account for Monad block time
+      });
+      console.log(`[MultisendNative] Receipt received:`, {
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed?.toString(),
+        status: receipt.status,
+        logs: receipt.logs.length,
+      });
     } catch (error) {
+      console.error(`[MultisendNative] waitForTransactionReceipt failed:`, error);
       throw new Error(
         `Transaction confirmation failed: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+
+    // Check if transaction reverted
+    if (receipt.status === "reverted") {
+      throw new Error(`Transaction reverted on chain. Check the explorer for details: ${txHash}`);
     }
 
     let logs;

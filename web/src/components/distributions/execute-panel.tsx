@@ -23,7 +23,10 @@ import type { TokenSelection } from "@/lib/tokens/types";
  * a retry can always reconcile. */
 async function persistBatch(distributionId: string, r: BatchResult): Promise<void> {
   try {
-    await fetch(`/api/distributions/${distributionId}/results`, {
+    console.log(
+      `[ExecutePanel] Persisting batch ${r.batchIndex} to /api/distributions/${distributionId}/results`,
+    );
+    const response = await fetch(`/api/distributions/${distributionId}/results`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
@@ -31,11 +34,23 @@ async function persistBatch(distributionId: string, r: BatchResult): Promise<voi
         batchIndex: r.batchIndex,
         txHash: r.txHash,
       }),
-    }).then((res) => {
-      if (!res.ok) throw new Error("Could not persist verified batch results.");
     });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(
+        `[ExecutePanel] persistBatch failed with status ${response.status}: ${errorBody}`,
+      );
+      throw new Error(
+        `Could not persist verified batch results (${response.status}): ${errorBody.slice(0, 100)}`,
+      );
+    }
+
+    console.log(`[ExecutePanel] Batch ${r.batchIndex} persisted successfully`);
   } catch (e) {
-    console.error("Failed to persist batch results; chain state is unaffected", e);
+    console.error("[ExecutePanel] Failed to persist batch results; chain state is unaffected", e);
+    // Do NOT re-throw — the transaction is already on chain, so the money has moved.
+    // This endpoint is idempotent, so a retry can always reconcile later.
   }
 }
 
