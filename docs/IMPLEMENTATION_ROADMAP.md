@@ -68,9 +68,9 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 
 **Files.**
 
-- `supabase/migrations/0001_tier1_schema.sql` (new).
-- `supabase/migrations/0002_rls_policies.sql` (new).
-- `supabase/tests/rls.test.sql` (new) — cross-tenant attack tests.
+- `database/migrations/0001_schema.sql` (new).
+- `web/scripts/migrate.mjs` (new) — versioned Neon migration runner.
+- Route-level cross-tenant attack tests.
 - `web/src/lib/db/types.ts` (new) — generated/typed row shapes.
 
 **Smart contract changes.** None.
@@ -85,7 +85,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 - Constraint tests: `amount = 2^128` rejected; duplicate `(user, salt)` rejected; duplicate `(distribution, batch, index)` rejected; same `(distribution, address)` twice _accepted_.
 - Cascade/restrict: deleting a distribution removes its recipients; deleting a user with distributions is blocked.
 
-**Definition of Done.** Migrations apply cleanly on a fresh Supabase project; RLS on for every table; anon client has no write grant on state-transitioning columns; cross-tenant tests are in CI and green; a deliberately malformed insert is rejected by a check, not stored.
+**Definition of Done.** Migrations apply cleanly on a fresh Neon project; the database is reachable only from server code; ownership-scoped cross-tenant tests are in CI and green; a deliberately malformed insert is rejected by a check, not stored.
 
 ---
 
@@ -122,7 +122,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 
 ## F6 — Distribution data layer (API routes) ⬜
 
-**Goal.** Server routes and typed client for creating/reading distributions and their recipients — the boundary between UI and Supabase.
+**Goal.** Server routes and typed queries for creating/reading distributions and their recipients — the boundary between UI and Neon Postgres.
 
 **Dependencies.** F4.
 
@@ -221,7 +221,7 @@ Everything F4–F17 (the whole MVP UI) requires **no contract changes** — F2 i
 
 **Smart contract changes.** None.
 
-**Database changes.** Writes `recipients` rows (via F6) tied to the draft; stores original CSV in Supabase Storage; sets `recipient_count`, `total_amount`.
+**Database changes.** Writes `recipients` rows (via F6) tied to the draft; stores original CSV in object storage; sets `recipient_count`, `total_amount`.
 
 **Frontend changes.** Drop/choose/paste; template download; virtualized preview with per-row status; edit/remove rows; running count + total.
 

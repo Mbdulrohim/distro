@@ -13,7 +13,7 @@ import { SESSION_TTL_SECONDS } from "./constants";
  * The signing secret is server-only (SESSION_SECRET, no NEXT_PUBLIC prefix).
  *
  * This is deliberately shaped so it can later be swapped for / mirrored into
- * a Supabase-RLS-compatible JWT (address as identity claim) without changing
+ * a database authorization context (address as identity claim) without changing
  * callers — see docs/CTO_REVIEW.md (auth architecture).
  */
 

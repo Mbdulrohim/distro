@@ -2,7 +2,7 @@
 
 Reviewed: [PRD](PRD.md) · [FEATURES](FEATURES.md) · [USER_FLOW](USER_FLOW.md) · [CONTRACT_SPEC](CONTRACT_SPEC.md) v2 · [DATABASE](DATABASE.md) · [API](API.md) · [ROADMAP](ROADMAP.md) · [BRAND](BRAND.md) · [PRODUCT](../PRODUCT.md)
 
-Stack: Next.js 15, React, TS, Tailwind, shadcn/ui, wagmi, viem, Foundry, Solidity, Supabase. Monad Mainnet.
+Stack: Next.js 15, React, TS, Tailwind, shadcn/ui, wagmi, viem, Foundry, Solidity, Neon Postgres. Monad Mainnet.
 
 > **Supersedes the v1 review** (written before the product definition existed, against a claim-based model that was never Distro). Contract-level findings live in [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) and are not repeated here; this document reviews the **product, scope, and engineering plan**.
 
@@ -63,13 +63,13 @@ Push is genuinely better where recipients are **known, few, and must actually re
 
 ## 🟠 S1 — MVP is over-scoped; a multisend-first MVP tests the hypothesis in a fraction of the surface
 
-Current v1 requires, before a single user is served: escrow contracts + external audit + dashboard + indexer service + keeper service + Supabase/RLS. For a pre-revenue startup that is months of work and a $30–100k audit before you learn whether anyone wants this.
+Current v1 requires, before a single user is served: escrow contracts + external audit + dashboard + indexer service + keeper service + a production database. For a pre-revenue startup that is months of work and a $30–100k audit before you learn whether anyone wants this.
 
 **Proposed MVP — "bulk send, now":**
 
 - One stateless `Multisend` contract: `distribute(token, payload)` → `transferFrom` the creator, push to all recipients, try/catch per transfer, emit `Paid` / `PaymentFailed`. On the order of 100 lines.
 - Creator signs `approve` then `distribute` **in the same session** — a short-lived allowance consumed immediately, the same pattern every DEX uses. Distro never holds funds or standing power, so "not a custodian" holds trivially.
-- **No indexer service.** The execution transaction's own receipt contains every `Paid`/`PaymentFailed` event — parse it client-side. Supabase stores history only.
+- **No indexer service.** The execution transaction's own receipt contains every `Paid`/`PaymentFailed` event — parse it client-side. Neon Postgres stores history only.
 - **No keeper.** The creator is present.
 - **No escrow, no commit phase, no DA problem, no state machine, no cancel/reclaim, no stranded funds, no grace period.**
 - Retry = a second `distribute` with the failed subset.
@@ -149,8 +149,8 @@ Mainnet-only is enforced at sign-in, but a user can switch networks mid-session,
 
 The contract-level findings are resolved in [CONTRACT_SPEC.md](CONTRACT_SPEC.md) v2. Standing items:
 
-- **Supabase RLS is the whole access-control story** — policies are now specified in [DATABASE.md](DATABASE.md); they must ship with tests that _attempt_ cross-tenant access. A policy nobody tried to break is untested.
-- **Service-role key never client-side.** `server-only` guards this today; keep it that way.
+- **Database access is server-only and ownership-scoped** — every query derives the user from the verified SIWE session. Ship route tests that _attempt_ cross-tenant access; a boundary nobody tried to break is untested.
+- **`DATABASE_URL` never reaches client code.** `server-only` guards this today; keep it that way.
 - **CSV upload** is an injection/DoS surface: formula injection, unbounded size, malformed encoding. Server-side validation is authoritative; client-side is UX.
 - **Rate-limit** upload and commit-computation endpoints.
 - **SIWE** — domain binding, nonce expiry, replay protection. Implemented; keep the library maintained.

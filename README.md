@@ -70,7 +70,7 @@ Large-scale distributions need fast execution, low transaction costs, and high t
 distro/
 ├── contracts/    Foundry — Multisend, MultisendNative, Distribution/DistributionFactory (escrow)
 ├── web/          Next.js 15 — marketing site, dashboard, API routes
-├── supabase/     Postgres schema + migrations (index/cache over onchain state)
+├── database/     Neon Postgres schema migrations (index/cache over onchain state)
 └── docs/         Product and technical specifications
 ```
 
@@ -86,7 +86,7 @@ Both live contracts are stateless and non-custodial by construction: tokens move
 
 **Frontend** — Next.js 15 (App Router), TypeScript, Tailwind, shadcn/ui, wagmi/viem, Framer Motion.
 **Auth** — Sign-In With Ethereum (SIWE) → stateless JWT session. No third-party wallet-auth provider.
-**Data** — Supabase (Postgres) as an index/cache over onchain state; the chain is always the source of truth for what actually happened.
+**Data** — Neon Postgres as an index/cache over onchain state; the chain is always the source of truth for what actually happened.
 
 ## Landing page
 
@@ -101,7 +101,7 @@ Hero · Problem · Solution · How It Works · Features · Templates · Use Case
 | [docs/CONTRACT_ARCHITECTURE.md](docs/CONTRACT_ARCHITECTURE.md) | Contract-system design: responsibilities, storage, events, gas, security |
 | [docs/CONTRACT_SPEC.md](docs/CONTRACT_SPEC.md)                 | The escrow contract's normative spec — state machine, invariants         |
 | [docs/AUDIT_SCOPE.md](docs/AUDIT_SCOPE.md)                     | What an external audit of the escrow contract needs to cover             |
-| [docs/DATABASE.md](docs/DATABASE.md)                           | Supabase schema, RLS policies, indexes                                   |
+| [docs/DATABASE.md](docs/DATABASE.md)                           | Neon Postgres schema, access model, indexes                              |
 | [docs/API.md](docs/API.md)                                     | Route handlers backing the dashboard                                     |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                   | Full system architecture and the reasoning behind each decision          |
 | [docs/ROADMAP.md](docs/ROADMAP.md)                             | Phasing and the decisions that gate each phase                           |
@@ -122,10 +122,11 @@ forge test
 ```bash
 cd web
 npm install
+npm run db:migrate
 npm run dev
 ```
 
-Copy [.env.example](.env.example) to `web/.env.local` and fill in your Supabase project, RPC, and session values before running the app. Never commit a filled-in env file.
+Copy [.env.example](.env.example) to `web/.env.local`, set `DATABASE_URL` to the pooled connection string from Neon, and fill in the RPC and session values. Run the migrations once before starting the app. Never commit a filled-in env file.
 
 ## Conventions
 

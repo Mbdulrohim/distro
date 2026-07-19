@@ -28,12 +28,12 @@ Distro is a **push** distribution engine: the sender pays many recipients in one
             │                                │ events
             ▼                                ▼
 ┌───────────────────────────┐   ┌──────────────────────────┐
-│  Supabase (Postgres)      │◀──│  Indexer service (later) │
-│  cache/index · RLS · Auth  │   │  long-running, reorg-safe │
+│  Neon Postgres            │◀──│  Indexer service (later) │
+│  cache/index · server-only │   │  long-running, reorg-safe │
 └───────────────────────────┘   └──────────────────────────┘
 ```
 
-The dashed pieces (indexer, escrow) are **Phase 3+**. The MVP is the top box, the Next.js server, Supabase, and the Multisend contract — nothing else.
+The dashed pieces (indexer, escrow) are **Phase 3+**. The MVP is the top box, the Next.js server, Neon Postgres, and the Multisend contract — nothing else.
 
 **Why sequence it this way.** The MVP's entire value — bulk send, per-recipient tracking, retry — is deliverable with a ~100-line stateless contract and no backend services, because the execution transaction's own receipt already contains every result event. Scheduling is the only requirement that forces escrow/keeper/indexer, and scheduling is an unvalidated hypothesis (the PRD's problem statement never mentions timing). We refuse to pay for it before it's validated. See [CTO_REVIEW.md](CTO_REVIEW.md) S1.
 
@@ -99,13 +99,13 @@ Only when scheduling is validated. Full design in [CONTRACT_SPEC.md](CONTRACT_SP
 | **Route handlers, not a separate API service, for the MVP**                  | The MVP's server needs are auth verification, CSV validation/storage, and history reads — all request/response. Serverless handlers fit, deploy with the frontend, and add no ops surface.                                                                                                                                      |
 | **The indexer is a separate long-running service, and cannot be serverless** | It holds a persistent event subscription with confirmation-depth and reorg handling — the one thing serverless can't do. It gets its own deploy target, monitoring, and restart semantics. It's Phase 3+ because the MVP doesn't need it: the execution receipt carries every `Paid`/`PaymentFailed` event, parsed client-side. |
 | **No custom backend for execution**                                          | Distro never executes on the user's behalf in the MVP (they sign) and only _optionally_ keeps for convenience in escrow (permissionless, so anyone can). There is deliberately no "execute for me" endpoint that takes custody.                                                                                                 |
-| **Server owns all privileged writes**                                        | State transitions and indexer upserts run server-side with the service-role key; the browser never holds elevated database permissions.                                                                                                                                                                                         |
+| **Server owns all database access**                                          | Reads, state transitions, and indexer upserts run server-side with `DATABASE_URL`; the browser never receives database credentials.                                                                                                                                                                                             |
 
 ---
 
 ## 5. Database
 
-**Supabase (Postgres)** as an **index/cache over onchain state — the chain is the source of truth.** Full schema in [DATABASE.md](DATABASE.md).
+**Neon Postgres** as an **index/cache over onchain state — the chain is the source of truth.** Full schema in [DATABASE.md](DATABASE.md).
 
 | Decision                                                                 | Why                                                                                                                                                                                                                                                                            |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -126,7 +126,7 @@ Only when scheduling is validated. Full design in [CONTRACT_SPEC.md](CONTRACT_SP
 | Decision                                                    | Why                                                                                                                                                                                                                                                                                                                                              |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **SIWE over Para/embedded wallets**                         | Requirements are plain connect/session/protected-route with no email/social/embedded need; the approved architecture specified SIWE; and Para requires external API-key provisioning the user must do. SIWE is self-contained and is the standard for wallet-native products. Para remains a clean drop-in later if embedded wallets are wanted. |
-| **Stateless JWT (jose, HS256), not a server session store** | No session table to operate for Feature 1; the signed cookie carries the wallet address. Shaped so it can later mint a Supabase-RLS-compatible JWT (address as identity claim) without changing callers.                                                                                                                                         |
+| **Stateless JWT (jose, HS256), not a server session store** | No session table to operate for Feature 1; the signed cookie carries the wallet address, which server routes resolve to an ownership-scoped database user.                                                                                                                                                                                       |
 | **Nonce in a short-lived httpOnly cookie**                  | Replay protection without a nonce store: the signed message's nonce must match the cookie the server issued. httpOnly means JS can't exfiltrate it.                                                                                                                                                                                              |
 | **Mainnet enforced at verify time**                         | The SIWE message's `chainId` must be 143 (Monad Mainnet) or verification fails — mainnet-only is an auth invariant, not just a UI default.                                                                                                                                                                                                       |
 | **jose, imported via narrow JWS subpaths**                  | jose works in the Edge runtime (middleware verifies the session there); the barrel import pulls JWE/deflate code the Edge runtime rejects, so only the JWS sign/verify paths are imported.                                                                                                                                                       |
@@ -171,17 +171,17 @@ distro/
 │       │   ├── auth/ · layout/ · ui/  # ui/ = shadcn primitives
 │       ├── lib/
 │       │   ├── auth/                   # session · siwe · api · constants
-│       │   ├── wagmi/ · supabase/       # config + typed clients
+│       │   ├── wagmi/ · db/             # config + Neon queries
 │       │   └── format.ts
 │       └── config/chains.ts            # Monad mainnet
 │
-├── supabase/                       # config + migrations/
+├── database/                       # Postgres migrations/
 ├── docs/                            # specs (PRD, CONTRACT_SPEC, DATABASE, API, …)
 ├── PRODUCT.md · DESIGN.md          # impeccable design context
 └── CLAUDE.md · README.md
 ```
 
-**Why this shape:** monorepo per the monskills scaffold convention (`contracts/` + `web/`), so a single checkout builds everything. `lib/` splits by concern (auth, wagmi, supabase) rather than by type, so a feature's server + client pieces live together. The indexer, when built, becomes a sibling top-level service (`indexer/`), never a route handler.
+**Why this shape:** monorepo per the monskills scaffold convention (`contracts/` + `web/`), so a single checkout builds everything. `lib/` splits by concern (auth, wagmi, database) rather than by type, so a feature's server + client pieces live together. The indexer, when built, becomes a sibling top-level service (`indexer/`), never a route handler.
 
 ---
 
@@ -189,14 +189,14 @@ distro/
 
 No global state library. State is placed by its nature and lifetime:
 
-| State                                | Home                                       | Why                                                                                               |
-| ------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Wallet connection / chain            | wagmi hooks                                | wagmi owns it; wrapping it would just add a layer.                                                |
-| Server session (auth truth)          | react-query over `/api/auth/me`            | Shared, cacheable, invalidated on sign-in/out. One source across components.                      |
-| Onchain reads                        | react-query + viem                         | Same cache/invalidation model; keys by query.                                                     |
-| Server data (distributions, history) | react-query over route handlers / Supabase | Same. Realtime subscriptions replace polling once escrow lands.                                   |
-| Form / import state                  | local component state                      | Ephemeral, single-surface; no reason to hoist it.                                                 |
-| Auth-derived UI                      | `useAuth` hook                             | One hook composes wagmi + the session query into `{ address, isAuthenticated, signIn, signOut }`. |
+| State                                | Home                            | Why                                                                                               |
+| ------------------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Wallet connection / chain            | wagmi hooks                     | wagmi owns it; wrapping it would just add a layer.                                                |
+| Server session (auth truth)          | react-query over `/api/auth/me` | Shared, cacheable, invalidated on sign-in/out. One source across components.                      |
+| Onchain reads                        | react-query + viem              | Same cache/invalidation model; keys by query.                                                     |
+| Server data (distributions, history) | react-query over route handlers | Same. An indexer-driven sync path replaces polling once escrow lands.                             |
+| Form / import state                  | local component state           | Ephemeral, single-surface; no reason to hoist it.                                                 |
+| Auth-derived UI                      | `useAuth` hook                  | One hook composes wagmi + the session query into `{ address, isAuthenticated, signIn, signOut }`. |
 
 **Why no Redux/Zustand:** the app has no genuinely global mutable client state. Wallet state belongs to wagmi, server state to react-query; a store would duplicate both and invite drift between them. This is the standard modern web3 stack precisely because those two libraries already cover the field.
 
@@ -223,7 +223,7 @@ Route handlers under `web/src/app/api/`. Full surface in [API.md](API.md); princ
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Contract**   | No custody (MVP balance always zero); no admin key; SafeERC20 semantics via guarded low-level calls; reentrancy guards; excludes ERC-777/callback and fee-on-transfer/rebasing tokens; gas floor prevents false-failure recording. Escrow adds: permissionless execution can never redirect funds, factory pause can't touch funded distributions, fuzz+invariant suite, external audit before mainnet. |
 | **Session**    | SIWE with domain binding, server-issued nonce, replay protection, mainnet-bound `chainId`; httpOnly cookies; Edge-verified route protection + server-side re-verification.                                                                                                                                                                                                                              |
-| **Database**   | RLS is the entire access-control story — policies scope creators to their own rows, keyed on the JWT address (lowercased); anon client holds no privileged grant; service-role key is `server-only` and never reaches the client. Policies ship with cross-tenant _attack_ tests.                                                                                                                       |
+| **Database**   | Neon is server-only. Every route derives the owner from the verified SIWE session and scopes SQL by `user_id`; `DATABASE_URL` never reaches browser code. Cross-tenant route tests verify that foreign ids return 404.                                                                                                                                                                                  |
 | **Ingestion**  | CSV upload guarded against formula injection, oversize, malformed encoding; server-authoritative validation; rate limiting.                                                                                                                                                                                                                                                                             |
 | **Operations** | Safe multisig on any privileged contract role from day one (testnet included); the keeper (escrow) signs _executions_ only, never transfers of custody; a per-distribution size cap during the first mainnet weeks to bound blast radius.                                                                                                                                                               |
 
@@ -246,7 +246,7 @@ The bottleneck is never Monad's throughput — it's the indexer and RPC limits.
 | **Indexer (escrow era)** | The real scaling risk: a 5,000-recipient run emits 5,000 events in a short window. Bulk-insert (not row-at-a-time), back-pressure the Realtime fan-out, write only past confirmation depth, reconcile against onchain reads periodically.             |
 | **Dashboard**            | Server-side pagination/filter/sort from day one; the DB indexes in [DATABASE.md](DATABASE.md) exist for exactly these query patterns.                                                                                                                 |
 | **RPC**                  | Rate limits appear before throughput does — choose a provider from the monskills `tooling-and-infra` list before load, not after; plan failover.                                                                                                      |
-| **Read scale**           | Supabase Realtime replaces polling; react-query caches onchain reads; `lastIndexedBlock` lets the client reason about freshness without hammering.                                                                                                    |
+| **Read scale**           | Indexer-driven refresh replaces receipt polling; react-query caches onchain reads; `lastIndexedBlock` lets the client reason about freshness without hammering.                                                                                       |
 
 **Deliberate anti-scaling choice for the MVP:** no indexer at all. The execution receipt is the source of results, parsed client-side. This removes the single most operationally demanding component from the critical path until scheduling forces it — which is the whole reason the MVP can ship without a standing backend.
 

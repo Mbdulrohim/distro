@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -5,32 +6,25 @@ import { getAddress, type Address } from "viem";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { db } from "@/lib/db/client";
 import { verifyDistributionReceipt } from "@/lib/distributions/verify-receipt";
-
-/**
- * Record the outcome of an executed batch.
- *
- * The client decodes `Paid` / `PaymentFailed` from the transaction receipt and
- * posts them here. The receipt is the source of truth — this endpoint only
- * persists what the chain already said, so the dashboard can answer "who was
- * paid?" without re-reading the chain on every page load.
- *
- * **Idempotent.** A retried post of the same tx hash must not duplicate rows or
- * double-count a payment: the transaction row is keyed on
- * `(distribution_id, batch_index)` and upserted, and recipient rows are matched
- * on `(distribution_id, batch_index, index_in_batch)` — the position, never the
- * address, because duplicate addresses are legal by design.
- */
 
 const resultSchema = z.object({
   batchIndex: z.number().int().min(0),
   txHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "Not a transaction hash"),
 });
 
+interface DistributionRow {
+  id: string;
+  chain_id: number;
+  token_address: string;
+  kind: "immediate" | "scheduled";
+  multisend_address: string | null;
+  escrow_address: string | null;
+}
+
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-
   const cookieStore = await cookies();
   const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
   if (!session) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
@@ -44,7 +38,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
-
   const parsed = resultSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -53,26 +46,23 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     );
   }
   const { batchIndex, txHash } = parsed.data;
+  const sql = db();
 
-  const supabase = createServiceRoleClient();
-
-  // Ownership check. Never trust the id in the URL — a distribution you don't
-  // own must 404, not leak its existence.
-  const { data: dist } = await supabase
-    .from("distributions")
-    .select("id, chain_id, token_address, kind, multisend_address, escrow_address")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .single();
-
+  const distributions = (await sql`
+    SELECT id, chain_id, token_address, kind, multisend_address, escrow_address
+    FROM distributions
+    WHERE id = ${id} AND user_id = ${userId} AND deleted_at IS NULL
+    LIMIT 1
+  `) as DistributionRow[];
+  const dist = distributions[0];
   if (!dist) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const contract = (
     dist.kind === "scheduled" ? dist.escrow_address : dist.multisend_address
   ) as Address | null;
-  if (!contract)
+  if (!contract) {
     return NextResponse.json({ error: "Distribution contract is not recorded." }, { status: 409 });
+  }
 
   let verified;
   try {
@@ -95,13 +85,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     );
   }
 
-  const { data: expected } = await supabase
-    .from("recipients")
-    .select("id, index_in_batch, address, amount")
-    .eq("distribution_id", id)
-    .eq("batch_index", batchIndex)
-    .order("index_in_batch", { ascending: true });
-  if (!expected || expected.length !== verified.payments.length) {
+  const expected = (await sql`
+    SELECT id, index_in_batch, address, amount
+    FROM recipients
+    WHERE distribution_id = ${id} AND batch_index = ${batchIndex}
+    ORDER BY index_in_batch
+  `) as { id: string; index_in_batch: number; address: string; amount: string }[];
+
+  if (expected.length !== verified.payments.length) {
     return NextResponse.json(
       { error: "Receipt does not match this distribution batch." },
       { status: 409 },
@@ -117,12 +108,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     }
   }
 
-  const { data: prior } = await supabase
-    .from("distribution_transactions")
-    .select("id, tx_hash")
-    .eq("distribution_id", id)
-    .eq("batch_index", batchIndex)
-    .maybeSingle();
+  const existing = (await sql`
+    SELECT id, tx_hash
+    FROM distribution_transactions
+    WHERE distribution_id = ${id} AND batch_index = ${batchIndex}
+    LIMIT 1
+  `) as { id: string; tx_hash: string | null }[];
+  const prior = existing[0];
   if (prior && prior.tx_hash?.toLowerCase() !== txHash.toLowerCase()) {
     return NextResponse.json(
       { error: "A different transaction is already recorded for this batch." },
@@ -130,87 +122,66 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     );
   }
 
-  // Upsert the transaction — idempotent on (distribution_id, batch_index).
-  const { data: tx, error: txError } = await supabase
-    .from("distribution_transactions")
-    .upsert(
-      {
-        distribution_id: id,
-        batch_index: batchIndex,
-        tx_hash: txHash,
-        status: "mined" as const,
-        block_number: verified.blockNumber,
-        gas_used: verified.gasUsed,
-        mined_at: new Date().toISOString(),
-      },
-      { onConflict: "distribution_id,batch_index" },
-    )
-    .select("id")
-    .single();
-
-  if (txError || !tx) {
-    console.error("Failed to record transaction", txError);
-    return NextResponse.json({ error: "Could not record the transaction." }, { status: 500 });
+  const transactionId = prior?.id ?? randomUUID();
+  const now = new Date().toISOString();
+  try {
+    await sql.transaction((tx) => [
+      tx`
+        INSERT INTO distribution_transactions (
+          id, distribution_id, batch_index, tx_hash, status,
+          block_number, gas_used, mined_at
+        ) VALUES (
+          ${transactionId}, ${id}, ${batchIndex}, ${txHash}, 'mined',
+          ${verified.blockNumber.toString()}, ${verified.gasUsed.toString()}, ${now}
+        )
+        ON CONFLICT (distribution_id, batch_index) DO UPDATE SET
+          tx_hash = EXCLUDED.tx_hash,
+          status = EXCLUDED.status,
+          block_number = EXCLUDED.block_number,
+          gas_used = EXCLUDED.gas_used,
+          mined_at = EXCLUDED.mined_at
+      `,
+      ...verified.payments.map(
+        (payment) => tx`
+        UPDATE recipients SET
+          transaction_id = ${transactionId},
+          status = ${payment.status}::recipient_status,
+          paid_at = ${payment.status === "paid" ? now : null},
+          failure_reason = ${
+            payment.status === "failed"
+              ? "The token rejected this transfer (recipient or token rule)."
+              : null
+          }
+        WHERE distribution_id = ${id}
+          AND batch_index = ${batchIndex}
+          AND index_in_batch = ${payment.index}
+      `,
+      ),
+    ]);
+  } catch (error) {
+    console.error("Failed to record distribution results", error);
+    return NextResponse.json({ error: "Could not record results." }, { status: 500 });
   }
 
-  // Update each recipient by POSITION. Matching on address would corrupt a
-  // distribution that intentionally pays one address twice.
-  for (const p of verified.payments) {
-    const { error } = await supabase
-      .from("recipients")
-      .update({
-        transaction_id: tx.id,
-        status: p.status,
-        paid_at: p.status === "paid" ? new Date().toISOString() : null,
-        failure_reason:
-          p.status === "failed"
-            ? "The token rejected this transfer (recipient or token rule)."
-            : null,
-      })
-      .eq("distribution_id", id)
-      .eq("batch_index", batchIndex)
-      .eq("index_in_batch", p.index);
-
-    if (error) {
-      console.error("Failed to update recipient", { batchIndex, index: p.index, error });
-      return NextResponse.json({ error: "Could not record results." }, { status: 500 });
-    }
-  }
-
-  // Derive the distribution's status from what actually landed, counted in the
-  // database rather than from this request — a partial post must not report
-  // "completed".
-  const { count: pending } = await supabase
-    .from("recipients")
-    .select("id", { count: "exact", head: true })
-    .eq("distribution_id", id)
-    .eq("status", "pending");
-
-  const { count: failed } = await supabase
-    .from("recipients")
-    .select("id", { count: "exact", head: true })
-    .eq("distribution_id", id)
-    .eq("status", "failed");
-
-  // "submitted" for immediate (Multisend, in-flight for the duration of one
-  // signed transaction); "executing" for scheduled (an escrow that may take
-  // several separate `executeChunk` calls, possibly by different callers,
-  // possibly hours apart) — same in-progress meaning, distinct vocabulary
-  // because the two are genuinely different processes.
+  const counts = (await sql`
+    SELECT
+      count(*) FILTER (WHERE status = 'pending')::int AS pending,
+      count(*) FILTER (WHERE status = 'failed')::int AS failed
+    FROM recipients WHERE distribution_id = ${id}
+  `) as { pending: number; failed: number }[];
+  const { pending = 0, failed = 0 } = counts[0] ?? {};
   const inProgressStatus = dist.kind === "scheduled" ? "executing" : "submitted";
-  const status =
-    (pending ?? 0) > 0 ? inProgressStatus : (failed ?? 0) > 0 ? "partially_completed" : "completed";
+  const status = pending > 0 ? inProgressStatus : failed > 0 ? "partially_completed" : "completed";
 
-  await supabase
-    .from("distributions")
-    .update({
-      status,
-      submitted_at: new Date().toISOString(),
-      completed_at: (pending ?? 0) === 0 ? new Date().toISOString() : null,
-    })
-    .eq("id", id);
+  await sql`
+    UPDATE distributions SET
+      status = ${status}::distribution_status,
+      submitted_at = ${now},
+      completed_at = ${pending === 0 ? now : null}
+    WHERE id = ${id}
+  `;
 
-  return NextResponse.json({ status, pending: pending ?? 0, failed: failed ?? 0 });
+  return NextResponse.json({ status, pending, failed });
 }
 
 export const dynamic = "force-dynamic";

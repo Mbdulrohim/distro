@@ -1,13 +1,5 @@
 import "server-only";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
-
-/**
- * Single-distribution reads for the detail page.
- *
- * Scoped to `userId` on the server — that scoping IS the access control today
- * (the SIWE JWT isn't yet Supabase's access token, so RLS doesn't bite for the
- * service-role client). Never take the user id from client input.
- */
+import { db } from "./client";
 
 export interface DistributionDetail {
   id: string;
@@ -16,7 +8,6 @@ export interface DistributionDetail {
   tokenAddress: string;
   tokenSymbol: string;
   tokenDecimals: number;
-  /** Null for a `scheduled` distribution — it never talks to Multisend. */
   multisendAddress: string | null;
   totalAmount: string;
   recipientCount: number;
@@ -25,11 +16,7 @@ export interface DistributionDetail {
   submittedAt: string | null;
   completedAt: string | null;
   kind: "immediate" | "scheduled";
-  /** The deployed `Distribution` clone's address, once `createDistribution`
-   * has confirmed. Null before that, and always null for `immediate`. */
   escrowAddress: string | null;
-  /** Unix seconds, or null for "no restriction". Only meaningful when `kind`
-   * is "scheduled". */
   executeAfter: number | null;
 }
 
@@ -49,145 +36,135 @@ export interface DistributionSummary {
   paid: number;
   failed: number;
   pending: number;
-  /** Base units actually delivered — counted from rows, never assumed. */
   totalPaid: bigint;
 }
 
-/** Returns null when the distribution doesn't exist *or* isn't this user's. */
+interface DistributionRow {
+  id: string;
+  name: string;
+  chain_id: number;
+  token_address: string;
+  token_symbol: string;
+  token_decimals: number;
+  multisend_address: string | null;
+  total_amount: string;
+  recipient_count: number;
+  status: string;
+  created_at: string;
+  submitted_at: string | null;
+  completed_at: string | null;
+  kind: "immediate" | "scheduled";
+  escrow_address: string | null;
+  execute_after: string | null;
+}
+
 export async function getDistribution(
   id: string,
   userId: string,
 ): Promise<DistributionDetail | null> {
-  const supabase = createServiceRoleClient();
-
-  const { data, error } = await supabase
-    .from("distributions")
-    .select(
-      "id, name, chain_id, token_address, token_symbol, token_decimals, multisend_address, total_amount, recipient_count, status, created_at, submitted_at, completed_at, kind, escrow_address, execute_after",
-    )
-    .eq("id", id)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (error || !data) return null;
+  const rows = (await db()`
+    SELECT id, name, chain_id, token_address, token_symbol, token_decimals,
+           multisend_address, total_amount, recipient_count, status, created_at,
+           submitted_at, completed_at, kind, escrow_address, execute_after
+    FROM distributions
+    WHERE id = ${id} AND user_id = ${userId} AND deleted_at IS NULL
+    LIMIT 1
+  `) as DistributionRow[];
+  const row = rows[0];
+  if (!row) return null;
 
   return {
-    id: data.id,
-    name: data.name,
-    chainId: data.chain_id,
-    tokenAddress: data.token_address,
-    tokenSymbol: data.token_symbol,
-    tokenDecimals: data.token_decimals,
-    multisendAddress: data.multisend_address,
-    totalAmount: data.total_amount,
-    recipientCount: data.recipient_count,
-    status: data.status,
-    createdAt: data.created_at,
-    submittedAt: data.submitted_at,
-    completedAt: data.completed_at,
-    kind: data.kind,
-    escrowAddress: data.escrow_address,
-    executeAfter: data.execute_after
-      ? Math.floor(new Date(data.execute_after).getTime() / 1000)
+    id: row.id,
+    name: row.name,
+    chainId: row.chain_id,
+    tokenAddress: row.token_address,
+    tokenSymbol: row.token_symbol,
+    tokenDecimals: row.token_decimals,
+    multisendAddress: row.multisend_address,
+    totalAmount: row.total_amount,
+    recipientCount: row.recipient_count,
+    status: row.status,
+    createdAt: row.created_at,
+    submittedAt: row.submitted_at,
+    completedAt: row.completed_at,
+    kind: row.kind,
+    escrowAddress: row.escrow_address,
+    executeAfter: row.execute_after
+      ? Math.floor(new Date(row.execute_after).getTime() / 1000)
       : null,
   };
 }
 
-/**
- * Recipients in committed order.
- *
- * Ordered by `(batch_index, index_in_batch)` — position order, always. That
- * ordering is what the on-chain payload committed to, and what maps a `Paid`
- * event back to a row. Sorting by anything else (address, amount, status)
- * would break the correspondence.
- */
 export async function getRecipients(
   distributionId: string,
   opts: { limit?: number; offset?: number; failedOnly?: boolean } = {},
 ): Promise<RecipientRow[]> {
-  const supabase = createServiceRoleClient();
   const { limit = 500, offset = 0, failedOnly = false } = opts;
+  const rows = (await db()`
+    SELECT r.id, r.batch_index, r.index_in_batch, r.address, r.amount,
+           r.status, r.failure_reason, r.paid_at, t.tx_hash
+    FROM recipients r
+    LEFT JOIN distribution_transactions t ON t.id = r.transaction_id
+    WHERE r.distribution_id = ${distributionId}
+      AND (${failedOnly} = false OR r.status = 'failed')
+    ORDER BY r.batch_index, r.index_in_batch
+    LIMIT ${limit} OFFSET ${offset}
+  `) as {
+    id: string;
+    batch_index: number;
+    index_in_batch: number;
+    address: string;
+    amount: string;
+    status: RecipientRow["status"];
+    failure_reason: string | null;
+    paid_at: string | null;
+    tx_hash: string | null;
+  }[];
 
-  let query = supabase
-    .from("recipients")
-    .select(
-      "id, batch_index, index_in_batch, address, amount, status, failure_reason, paid_at, distribution_transactions(tx_hash)",
-    )
-    .eq("distribution_id", distributionId)
-    .order("batch_index", { ascending: true })
-    .order("index_in_batch", { ascending: true })
-    .range(offset, offset + limit - 1);
-
-  if (failedOnly) query = query.eq("status", "failed");
-
-  const { data, error } = await query;
-  if (error) throw new Error(`Failed to load recipients: ${error.message}`);
-
-  return (data ?? []).map((r) => {
-    // PostgREST types an embedded relation as an array even when the FK makes
-    // it at-most-one. Normalise rather than cast it away — a wrong assumption
-    // here silently drops every tx link in the table.
-    const embedded = r.distribution_transactions as unknown;
-    const tx = (Array.isArray(embedded) ? embedded[0] : embedded) as
-      { tx_hash: string } | null | undefined;
-    return {
-      id: r.id,
-      batchIndex: r.batch_index,
-      indexInBatch: r.index_in_batch,
-      address: r.address,
-      amount: r.amount,
-      status: r.status,
-      failureReason: r.failure_reason,
-      paidAt: r.paid_at,
-      txHash: tx?.tx_hash ?? null,
-    };
-  });
+  return rows.map((row) => ({
+    id: row.id,
+    batchIndex: row.batch_index,
+    indexInBatch: row.index_in_batch,
+    address: row.address,
+    amount: row.amount,
+    status: row.status,
+    failureReason: row.failure_reason,
+    paidAt: row.paid_at,
+    txHash: row.tx_hash,
+  }));
 }
 
-/** Counts + delivered total, computed from the rows themselves. */
 export async function getSummary(distributionId: string): Promise<DistributionSummary> {
-  const supabase = createServiceRoleClient();
-
-  const { data, error } = await supabase
-    .from("recipients")
-    .select("status, amount")
-    .eq("distribution_id", distributionId);
-
-  if (error) throw new Error(`Failed to summarise distribution: ${error.message}`);
+  const rows = (await db()`
+    SELECT status, amount FROM recipients WHERE distribution_id = ${distributionId}
+  `) as { status: RecipientRow["status"]; amount: string }[];
 
   let paid = 0;
   let failed = 0;
   let pending = 0;
   let totalPaid = 0n;
-
-  for (const r of data ?? []) {
-    if (r.status === "paid") {
+  for (const row of rows) {
+    if (row.status === "paid") {
       paid++;
-      // BigInt, never Number: 18-decimal base units exceed 2^53 and would round.
-      totalPaid += BigInt(r.amount);
-    } else if (r.status === "failed") failed++;
+      totalPaid += BigInt(row.amount);
+    } else if (row.status === "failed") failed++;
     else pending++;
   }
-
   return { paid, failed, pending, totalPaid };
 }
 
-/** Distinct transaction hashes for this distribution, in batch order. */
 export async function getTransactions(
   distributionId: string,
 ): Promise<{ batchIndex: number; txHash: string | null; status: string }[]> {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("distribution_transactions")
-    .select("batch_index, tx_hash, status")
-    .eq("distribution_id", distributionId)
-    .order("batch_index", { ascending: true });
-
-  if (error) throw new Error(`Failed to load transactions: ${error.message}`);
-  return (data ?? []).map((t) => ({
-    batchIndex: t.batch_index,
-    txHash: t.tx_hash,
-    status: t.status,
+  const rows = (await db()`
+    SELECT batch_index, tx_hash, status
+    FROM distribution_transactions
+    WHERE distribution_id = ${distributionId}
+    ORDER BY batch_index
+  `) as { batch_index: number; tx_hash: string | null; status: string }[];
+  return rows.map((row) => ({
+    batchIndex: row.batch_index,
+    txHash: row.tx_hash,
+    status: row.status,
   }));
 }

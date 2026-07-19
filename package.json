@@ -9,6 +9,7 @@
     "build": "npm run build --workspace=web",
     "lint": "npm run lint --workspace=web",
     "typecheck": "npm run typecheck --workspace=web",
+    "db:migrate": "npm run db:migrate --workspace=web",
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "cd contracts && forge test",
     "contracts:fmt": "cd contracts && forge fmt",

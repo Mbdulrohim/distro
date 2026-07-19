@@ -1,5 +1,5 @@
 /**
- * Pure aggregation for the dashboard. Deliberately separated from the Supabase
+ * Pure aggregation for the dashboard. Deliberately separated from the database
  * query (lib/db/dashboard.ts) so the money arithmetic is testable without a
  * database — the query becomes a thin fetch, and the logic that decides what
  * "total distributed" means is verified in isolation.

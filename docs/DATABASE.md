@@ -1,6 +1,6 @@
 # Database — Distro
 
-Supabase (Postgres). Offchain data is an **index/cache over onchain state for fast dashboard queries — the chain is the source of truth.** Every table here is reconstructable from onchain events plus the creator's original CSV; losing the database must be survivable, not catastrophic.
+Neon Postgres. Offchain data is an **index/cache over onchain state for fast dashboard queries — the chain is the source of truth.** Every table here is reconstructable from onchain events plus the creator's original CSV; losing the database must be survivable, not catastrophic.
 
 The schema comes in **two tiers**, matching the build sequence:
 
@@ -9,11 +9,11 @@ The schema comes in **two tiers**, matching the build sequence:
 
 > Supersedes the pre-definition draft (Merkle roots, proofs, claim status) — Distro has no claim step.
 
-## Supabase-specific ground rules (both tiers)
+## Database ground rules (both tiers)
 
-- **RLS is the entire access-control story.** Identity is the wallet address from the SIWE JWT. Policies scope creators to their own rows. Assume nothing from project defaults.
-- **The service-role key never reaches the client.** Privileged writes go through server route handlers (Tier 1) or the indexer service (Tier 2).
-- **Storage** keeps the original uploaded CSV for audit/dispute resolution, not just the parsed rows.
+- **The database is server-only.** The browser never receives database credentials or queries Neon directly.
+- **Every query is ownership-scoped.** Route handlers derive `user_id` from the verified SIWE session, never from client input.
+- **Object storage** will keep the original uploaded CSV for audit/dispute resolution, not just the parsed rows.
 - **Soft-delete only.** Audit trails must not be destructible from the UI.
 - **Realtime** replaces polling for live status (matters most in Tier 2).
 
@@ -25,7 +25,7 @@ Three tables. The `Multisend` flow is: create a distribution → import recipien
 
 ## `users`
 
-Why it exists: to anchor a wallet identity that distributions belong to, and to give RLS a subject. There is no separate auth account — the wallet _is_ the account (SIWE).
+Why it exists: to anchor the wallet identity that distributions belong to. There is no separate auth account — the wallet _is_ the account (SIWE).
 
 | column           | type        | constraints / notes                                                      |
 | ---------------- | ----------- | ------------------------------------------------------------------------ |
@@ -33,7 +33,7 @@ Why it exists: to anchor a wallet identity that distributions belong to, and to 
 | `wallet_address` | citext      | **unique**. `citext` so address casing can't create duplicate identities |
 | `created_at`     | timestamptz | default now                                                              |
 
-> A wallet may read/update only its own row (RLS). Team/org accounts are a known future gap — they'd insert an `organizations` / `team_members` layer between `users` and `distributions`, which is why distributions key on a user, not just a raw address.
+> A wallet may read/update only its own data through SIWE-authenticated, ownership-scoped server routes. Team/org accounts are a known future gap — they'd insert an `organizations` / `team_members` layer between `users` and `distributions`, which is why distributions key on a user, not just a raw address.
 
 ## `distributions`
 
@@ -52,7 +52,7 @@ Why it exists: one row per logical send the creator defines — the unit the das
 | `total_amount`                  | numeric(78,0) | **base units**, sum of recipient amounts                                                 |
 | `recipient_count`               | integer       | denormalized count; `check > 0`                                                          |
 | `status`                        | enum          | `draft`, `submitted`, `partially_completed`, `completed`, `failed`                       |
-| `csv_storage_path`              | text          | nullable — original upload in Supabase Storage                                           |
+| `csv_storage_path`              | text          | nullable — original upload in object storage                                             |
 | `created_at`                    | timestamptz   | default now                                                                              |
 | `submitted_at` / `completed_at` | timestamptz   | nullable                                                                                 |
 | `deleted_at`                    | timestamptz   | nullable — soft-delete (drafts only; a submitted distribution is history)                |
@@ -219,15 +219,9 @@ Distributions run to thousands of recipients; the dashboard's query patterns nee
 - FK delete rules: cascade from distribution to its children; restrict from user to distributions.
 - All monetary columns `numeric(78,0)` in **base units** — human units never touch the database.
 
-# Row-level security
+# Access control
 
-Asserting "RLS is the whole story" isn't implementing it. Policies ship **with the first migration**, not after:
-
-- Identity is `auth.jwt() ->> 'address'`, compared against `citext` columns so casing can't silently miss.
-- `distributions`: a user may `select`/`update` only rows they own (`user_id` resolves to the JWT address). No blanket public read — v1 has no public distribution pages.
-- `distribution_transactions`, `recipients`, `distribution_chunks`, `payment_events`, `audit_log`: reachable only through their parent distribution's ownership check.
-- **State-transitioning writes belong to the server / indexer**, not the browser. The anon client holds no `insert`/`update` grant on `payment_events` or transaction status at all.
-- Ship **cross-tenant attack tests** with the policies — a policy nobody tried to break is a policy nobody has tested.
+Neon is accessed only by server code through `DATABASE_URL`. The verified SIWE cookie resolves to a `users.id`, and every user-facing read or write includes that ownership constraint. Child data is only reached after the parent distribution has passed the same ownership check. The browser receives neither a connection string nor a database client.
 
 # Rebuild-from-chain (both tiers)
 

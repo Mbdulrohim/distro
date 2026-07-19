@@ -57,7 +57,7 @@ Monad Mainnet only. A persistent, unmissable network indicator — with real fun
 
 ### Data
 
-Offchain (Supabase) data is an index/cache over onchain state for fast dashboard queries. **The chain is the source of truth** — the schema must be reconstructable from onchain events plus creator-supplied metadata.
+Offchain (Neon Postgres) data is an index/cache over onchain state for fast dashboard queries. **The chain is the source of truth** — the schema must be reconstructable from onchain events plus creator-supplied metadata.
 
 ### Not in v1
 

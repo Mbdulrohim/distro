@@ -4,7 +4,7 @@
 
 ## Phase 0 — Foundation ✅
 
-- Monorepo scaffold: Foundry (`contracts/`), Next.js 15 + Tailwind + shadcn/ui (`web/`), Supabase.
+- Monorepo scaffold: Foundry (`contracts/`), Next.js 15 + Tailwind + shadcn/ui (`web/`), Neon Postgres.
 - `monskills` (Monad patterns) + `impeccable` (design review) wired in.
 - CI: Foundry fmt/build/test + web lint/typecheck/build.
 
@@ -28,7 +28,7 @@ Per [CTO_REVIEW.md](CTO_REVIEW.md) S1: escrow, keeper, indexer, and onchain DA a
 
 - Dashboard: connect → import CSV → validate → review → approve → distribute.
 - Parse results from the execution receipt client-side. **No indexer service** — the transaction's own receipt carries every `Paid`/`PaymentFailed` event.
-- Supabase for history only.
+- Neon Postgres for history only.
 - Testnet deploy + verification (monskills verification API).
 
 **Blocking mainnet:**
@@ -56,7 +56,7 @@ Ships alongside Phase 3 — these are what make an escrow-based scheduled run ob
 - Indexer (long-running service, reorg-safe, idempotent) + reconciliation job.
 - `cancel` / `reclaim` flows for the escrow.
 - CSV export, per-distribution audit timeline, explorer links.
-- Realtime dashboard updates (Supabase Realtime) + explicit indexer-lag "syncing" state.
+- Indexer-driven dashboard updates + explicit indexer-lag "syncing" state.
 
 ## Phase 5 — Hardening for mainnet
 

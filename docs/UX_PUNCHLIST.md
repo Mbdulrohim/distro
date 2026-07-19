@@ -1,6 +1,6 @@
 # UX Punch List — First-Time User Walkthrough
 
-Traced through the real code path, landing → completed distribution, on 2026-07-17. Not run live (this environment can't reach Supabase and has no wallet), so every item is anchored to a specific file rather than a screenshot.
+Traced through the real code path, landing → completed distribution, on 2026-07-17. Not run live (this environment has no configured database or wallet), so every item is anchored to a specific file rather than a screenshot.
 
 **The honest headline:** a first-time user **cannot** finish with a completed distribution on a production build. Mainnet's `Multisend` is deployed but deliberately unwired (unaudited), so `getMultisendAddress(143)` is `undefined` and the send dead-ends. The flow only completes on a **staging build** (`NEXT_PUBLIC_ENABLE_TESTNET=true`), against the testnet contract. Everything below assumes staging, since that's the only path that reaches "completed."
 

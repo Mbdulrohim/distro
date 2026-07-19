@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -5,57 +6,32 @@ import { getAddress, type Address } from "viem";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { db } from "@/lib/db/client";
 import { verifyDistributionReceipt } from "@/lib/distributions/verify-receipt";
-
-/**
- * Record the outcome of a RETRY.
- *
- * This exists separately from `/results` because of one thing that is easy to
- * get wrong and expensive to get wrong: **a retry payload can be renumbered.**
- *
- * Retrying 4 failures out of 240 (immediate/Multisend) sends a fresh 4-entry
- * payload, so the contract emits `Paid` at indices 0-3 — but those recipients
- * live at original positions like 17, 92, 155, 203. The mapping back to the
- * ORIGINAL row is therefore never trusted from the client — it is derived
- * entirely server-side from data whose integrity we already control:
- *
- *  - **Scheduled (escrow) retries**: the contract's own `retry` takes the
- *    original chunk positions as its argument, and its `Paid`/`PaymentFailed`
- *    events carry that same original position (`pos`) directly — see
- *    Distribution.sol. So `verified.payments[i].index` for a scheduled retry
- *    IS the real `index_in_batch`. No client-supplied mapping needed, and
- *    none is accepted for this case.
- *  - **Immediate (Multisend) retries**: the contract has no memory of
- *    original positions at all — a fresh payload always numbers from 0. The
- *    only anchor available is content (address + amount), which is NOT
- *    sufficient on its own: two currently-failed recipients can legitimately
- *    share the same address and amount (duplicates are allowed by design),
- *    making a content-only match ambiguous about which physical row a given
- *    on-chain event actually belongs to. The fix is to remove the ambiguity
- *    at the source: fetch every currently-failed recipient for this
- *    distribution in one canonical, deterministic order (batch_index,
- *    index_in_batch ascending) and require it to retry ALL of them, in
- *    that exact order — which is what the UI's "Retry N failed" already
- *    does (there is no partial-retry affordance). Position i in that
- *    canonical list is then zipped against the verified event whose index
- *    is i. A malicious or buggy client cannot attach a real on-chain event
- *    to the wrong ledger row, because the row is chosen by the server's own
- *    query order, never by anything the client asserts.
- */
 
 const retrySchema = z.object({
   txHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "Not a transaction hash"),
-  /** Required only for a scheduled (escrow) retry — which chunk's `retry`
-   * was called. Merely a routing hint: `verifyDistributionReceipt` asserts
-   * it against the receipt's own `chunkIndex` and throws on a mismatch, so a
-   * false claim here fails closed rather than silently mis-attaching. */
   chunkIndex: z.number().int().min(0).optional(),
 });
 
+interface DistributionRow {
+  id: string;
+  kind: "immediate" | "scheduled";
+  chain_id: number;
+  token_address: string;
+  multisend_address: string | null;
+  escrow_address: string | null;
+}
+
+interface FailedRecipientRow {
+  batch_index: number;
+  index_in_batch: number;
+  address: string;
+  amount: string;
+}
+
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-
   const cookieStore = await cookies();
   const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
   if (!session) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
@@ -69,7 +45,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
-
   const parsed = retrySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -78,16 +53,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     );
   }
   const { txHash, chunkIndex } = parsed.data;
+  const sql = db();
 
-  const supabase = createServiceRoleClient();
-
-  const { data: dist } = await supabase
-    .from("distributions")
-    .select("id, kind, chain_id, token_address, multisend_address, escrow_address")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .single();
+  const distributions = (await sql`
+    SELECT id, kind, chain_id, token_address, multisend_address, escrow_address
+    FROM distributions
+    WHERE id = ${id} AND user_id = ${userId} AND deleted_at IS NULL
+    LIMIT 1
+  `) as DistributionRow[];
+  const dist = distributions[0];
   if (!dist) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const contract = (
@@ -115,8 +89,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
           : dist.token_address === "0x0000000000000000000000000000000000000000"
             ? "immediate-native"
             : "immediate-erc20",
-      // Only meaningful for "scheduled" (asserted against the receipt's own
-      // chunkIndex inside verifyDistributionReceipt); ignored otherwise.
       batchIndex: chunkIndex ?? 0,
     });
   } catch (error) {
@@ -126,97 +98,51 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     );
   }
 
-  // The canonical (batch_index, index_in_batch) target for each verified
-  // event, derived entirely server-side -- never from client input.
-  let targets: { batchIndex: number; indexInBatch: number }[];
+  const failedRecipients = (await sql`
+    SELECT batch_index, index_in_batch, address, amount
+    FROM recipients
+    WHERE distribution_id = ${id} AND status = 'failed'
+    ORDER BY batch_index, index_in_batch
+  `) as FailedRecipientRow[];
 
-  if (dist.kind === "scheduled") {
-    // The contract's own `pos` IS the original position. Trust it directly.
-    targets = verified.payments.map((p) => ({ batchIndex: chunkIndex!, indexInBatch: p.index }));
-  } else {
-    const { data: currentlyFailed } = await supabase
-      .from("recipients")
-      .select("batch_index, index_in_batch")
-      .eq("distribution_id", id)
-      .eq("status", "failed")
-      .order("batch_index", { ascending: true })
-      .order("index_in_batch", { ascending: true });
+  const targets =
+    dist.kind === "scheduled"
+      ? verified.payments.map((payment) => ({
+          batchIndex: chunkIndex!,
+          indexInBatch: payment.index,
+        }))
+      : failedRecipients.map((row) => ({
+          batchIndex: row.batch_index,
+          indexInBatch: row.index_in_batch,
+        }));
 
-    if (!currentlyFailed || currentlyFailed.length !== verified.payments.length) {
-      return NextResponse.json(
-        { error: "This retry does not cover exactly the currently-failed recipients." },
-        { status: 409 },
-      );
-    }
-    targets = currentlyFailed.map((r) => ({
-      batchIndex: r.batch_index,
-      indexInBatch: r.index_in_batch,
-    }));
+  if (dist.kind === "immediate" && targets.length !== verified.payments.length) {
+    return NextResponse.json(
+      { error: "This retry does not cover exactly the currently-failed recipients." },
+      { status: 409 },
+    );
   }
 
-  // A retry is its own transaction, so it needs its own row. Reuse the row if
-  // this tx hash was already recorded — makes the endpoint idempotent under a
-  // double-post without inventing a second batch.
-  const { data: existing } = await supabase
-    .from("distribution_transactions")
-    .select("id")
-    .eq("distribution_id", id)
-    .eq("tx_hash", txHash)
-    .maybeSingle();
+  const byPosition = new Map(
+    failedRecipients.map((row) => [`${row.batch_index}:${row.index_in_batch}`, row]),
+  );
+  const mappedPayments = targets.map((target, index) => ({
+    target,
+    // Scheduled retry events retain their original (possibly sparse) position;
+    // immediate retries are renumbered from zero by Multisend.
+    event:
+      dist.kind === "scheduled"
+        ? verified.payments[index]
+        : verified.payments.find((candidate) => candidate.index === index),
+  }));
 
-  let txRowId = existing?.id;
-
-  if (!txRowId) {
-    const { data: last } = await supabase
-      .from("distribution_transactions")
-      .select("batch_index")
-      .eq("distribution_id", id)
-      .order("batch_index", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const nextBatchIndex = (last?.batch_index ?? -1) + 1;
-
-    const { data: tx, error: txError } = await supabase
-      .from("distribution_transactions")
-      .insert({
-        distribution_id: id,
-        batch_index: nextBatchIndex,
-        tx_hash: txHash,
-        status: "mined" as const,
-        block_number: verified.blockNumber,
-        gas_used: verified.gasUsed,
-        mined_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (txError || !tx) {
-      console.error("Failed to record retry transaction", txError);
-      return NextResponse.json({ error: "Could not record the transaction." }, { status: 500 });
-    }
-    txRowId = tx.id;
-  }
-
-  for (let i = 0; i < verified.payments.length; i++) {
-    const event = verified.payments.find((candidate) => candidate.index === i);
-    const target = targets[i];
-    if (!event || !target) {
-      return NextResponse.json(
-        { error: "Retry mapping does not match transaction receipt." },
-        { status: 409 },
-      );
-    }
-
-    const { data: recipient } = await supabase
-      .from("recipients")
-      .select("address, amount")
-      .eq("distribution_id", id)
-      .eq("batch_index", target.batchIndex)
-      .eq("index_in_batch", target.indexInBatch)
-      .eq("status", "failed")
-      .maybeSingle();
+  for (const { event, target } of mappedPayments) {
+    const recipient = target
+      ? byPosition.get(`${target.batchIndex}:${target.indexInBatch}`)
+      : undefined;
     if (
+      !event ||
+      !target ||
       !recipient ||
       getAddress(recipient.address) !== event.recipient ||
       recipient.amount !== event.amount
@@ -226,61 +152,79 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         { status: 409 },
       );
     }
-
-    // Matched on the ORIGINAL position, chosen by this server's own query
-    // order (or the contract's own `pos`) — never by anything the client
-    // asserted. Also gated on status='failed': a retry may only ever move a
-    // recipient OUT of failure, so a stale post can't un-pay someone.
-    const { error } = await supabase
-      .from("recipients")
-      .update({
-        transaction_id: txRowId,
-        status: event.status,
-        paid_at: event.status === "paid" ? new Date().toISOString() : null,
-        failure_reason:
-          event.status === "failed"
-            ? "Retry failed — the token still rejected this transfer."
-            : null,
-      })
-      .eq("distribution_id", id)
-      .eq("batch_index", target.batchIndex)
-      .eq("index_in_batch", target.indexInBatch)
-      .eq("status", "failed");
-
-    if (error) {
-      console.error("Failed to update retried recipient", { target, error });
-      return NextResponse.json({ error: "Could not record retry results." }, { status: 500 });
-    }
   }
 
-  // Recount from the rows, never from the request body.
-  const { count: pending } = await supabase
-    .from("recipients")
-    .select("id", { count: "exact", head: true })
-    .eq("distribution_id", id)
-    .eq("status", "pending");
+  const existingTransactions = (await sql`
+    SELECT id FROM distribution_transactions
+    WHERE distribution_id = ${id} AND tx_hash = ${txHash}
+    LIMIT 1
+  `) as { id: string }[];
+  const existingId = existingTransactions[0]?.id;
+  const transactionId = existingId ?? randomUUID();
 
-  const { count: failed } = await supabase
-    .from("recipients")
-    .select("id", { count: "exact", head: true })
-    .eq("distribution_id", id)
-    .eq("status", "failed");
+  const lastBatches = (await sql`
+    SELECT coalesce(max(batch_index), -1)::int AS batch_index
+    FROM distribution_transactions WHERE distribution_id = ${id}
+  `) as { batch_index: number }[];
+  const nextBatchIndex = (lastBatches[0]?.batch_index ?? -1) + 1;
+  const now = new Date().toISOString();
 
-  // Same kind-aware vocabulary as /results — "executing" for a scheduled
-  // (escrow) distribution, "submitted" for immediate (Multisend).
+  try {
+    await sql.transaction((tx) => [
+      ...(!existingId
+        ? [
+            tx`
+              INSERT INTO distribution_transactions (
+                id, distribution_id, batch_index, tx_hash, status,
+                block_number, gas_used, mined_at
+              ) VALUES (
+                ${transactionId}, ${id}, ${nextBatchIndex}, ${txHash}, 'mined',
+                ${verified.blockNumber.toString()}, ${verified.gasUsed.toString()}, ${now}
+              )
+            `,
+          ]
+        : []),
+      ...mappedPayments.map(({ event, target }) => {
+        return tx`
+          UPDATE recipients SET
+            transaction_id = ${transactionId},
+            status = ${event!.status}::recipient_status,
+            paid_at = ${event!.status === "paid" ? now : null},
+            failure_reason = ${
+              event!.status === "failed"
+                ? "Retry failed — the token still rejected this transfer."
+                : null
+            }
+          WHERE distribution_id = ${id}
+            AND batch_index = ${target.batchIndex}
+            AND index_in_batch = ${target.indexInBatch}
+            AND status = 'failed'
+        `;
+      }),
+    ]);
+  } catch (error) {
+    console.error("Failed to record retry results", error);
+    return NextResponse.json({ error: "Could not record retry results." }, { status: 500 });
+  }
+
+  const counts = (await sql`
+    SELECT
+      count(*) FILTER (WHERE status = 'pending')::int AS pending,
+      count(*) FILTER (WHERE status = 'failed')::int AS failed
+    FROM recipients WHERE distribution_id = ${id}
+  `) as { pending: number; failed: number }[];
+  const { pending = 0, failed = 0 } = counts[0] ?? {};
   const inProgressStatus = dist.kind === "scheduled" ? "executing" : "submitted";
-  const status =
-    (pending ?? 0) > 0 ? inProgressStatus : (failed ?? 0) > 0 ? "partially_completed" : "completed";
+  const status = pending > 0 ? inProgressStatus : failed > 0 ? "partially_completed" : "completed";
 
-  await supabase
-    .from("distributions")
-    .update({
-      status,
-      completed_at: (pending ?? 0) === 0 ? new Date().toISOString() : null,
-    })
-    .eq("id", id);
+  await sql`
+    UPDATE distributions SET
+      status = ${status}::distribution_status,
+      completed_at = ${pending === 0 ? now : null}
+    WHERE id = ${id}
+  `;
 
-  return NextResponse.json({ status, pending: pending ?? 0, failed: failed ?? 0 });
+  return NextResponse.json({ status, pending, failed });
 }
 
 export const dynamic = "force-dynamic";

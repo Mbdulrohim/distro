@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { db } from "@/lib/db/client";
 import { createDistributionSchema, computeTotal } from "@/lib/validation/distribution";
 import { isSupportedChain } from "@/config/chains";
 import { getMultisendAddress, getMultisendNativeAddress } from "@/config/contracts";
@@ -73,42 +73,14 @@ export async function POST(request: Request) {
   const salt: `0x${string}` | null =
     input.kind === "scheduled" ? `0x${randomBytes(32).toString("hex")}` : null;
 
-  const supabase = createServiceRoleClient();
-
-  const { data: dist, error: distError } = await supabase
-    .from("distributions")
-    .insert({
-      user_id: userId,
-      chain_id: input.chainId,
-      multisend_address: multisendAddress,
-      name: input.name,
-      token_address: input.tokenAddress,
-      token_symbol: input.tokenSymbol,
-      token_decimals: input.tokenDecimals,
-      total_amount: total.toString(),
-      recipient_count: input.recipients.length,
-      status: "draft",
-      kind: input.kind,
-      execute_after:
-        input.kind === "scheduled" && input.executeAfter
-          ? new Date(input.executeAfter * 1000).toISOString()
-          : null,
-      salt,
-    })
-    .select("id")
-    .single();
-
-  if (distError || !dist) {
-    console.error("Failed to create distribution", distError);
-    return NextResponse.json({ error: "Could not create distribution." }, { status: 500 });
-  }
+  const id = randomUUID();
 
   // Position is load-bearing: it maps a Paid/PaymentFailed event (which carries
   // only an index) back to its row, and is the retry key. Preserve input order
   // exactly — never sort.
   const batchSize = maxRecipientsPerBatch();
   const rows = input.recipients.map((r, i) => ({
-    distribution_id: dist.id,
+    distribution_id: id,
     batch_index: Math.floor(i / batchSize),
     index_in_batch: i % batchSize,
     address: r.address,
@@ -116,18 +88,44 @@ export async function POST(request: Request) {
     status: "pending" as const,
   }));
 
-  const { error: recipientError } = await supabase.from("recipients").insert(rows);
-
-  if (recipientError) {
-    // Postgres has no cross-statement transaction over PostgREST here, so an
-    // orphaned distribution is possible — delete it rather than leave a
-    // half-written record the dashboard would show as real.
-    await supabase.from("distributions").delete().eq("id", dist.id);
-    console.error("Failed to insert recipients", recipientError);
-    return NextResponse.json({ error: "Could not save recipients." }, { status: 500 });
+  const sql = db();
+  try {
+    await sql.transaction((tx) => [
+      tx`
+        INSERT INTO distributions (
+          id, user_id, chain_id, multisend_address, name, token_address,
+          token_symbol, token_decimals, total_amount, recipient_count,
+          status, kind, execute_after, salt
+        ) VALUES (
+          ${id}, ${userId}, ${input.chainId}, ${multisendAddress}, ${input.name},
+          ${input.tokenAddress}, ${input.tokenSymbol}, ${input.tokenDecimals},
+          ${total.toString()}, ${input.recipients.length}, 'draft', ${input.kind},
+          ${input.kind === "scheduled" && input.executeAfter ? new Date(input.executeAfter * 1000).toISOString() : null},
+          ${salt}
+        )
+      `,
+      tx`
+        INSERT INTO recipients (
+          distribution_id, batch_index, index_in_batch, address, amount, status
+        )
+        SELECT distribution_id::uuid, batch_index, index_in_batch,
+               address::citext, amount::numeric, status::recipient_status
+        FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS item(
+          distribution_id text,
+          batch_index integer,
+          index_in_batch integer,
+          address text,
+          amount text,
+          status text
+        )
+      `,
+    ]);
+  } catch (error) {
+    console.error("Failed to create distribution", error);
+    return NextResponse.json({ error: "Could not create distribution." }, { status: 500 });
   }
 
-  return NextResponse.json({ id: dist.id, salt }, { status: 201 });
+  return NextResponse.json({ id, salt }, { status: 201 });
 }
 
 export const dynamic = "force-dynamic";

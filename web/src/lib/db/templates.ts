@@ -1,10 +1,5 @@
 import "server-only";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
-
-/**
- * Templates — a saved distribution shape a user can start a new distribution
- * from. Scoped to `userId` on the server, same pattern as lib/db/distribution.ts.
- */
+import { db } from "./client";
 
 export interface TemplateRecipient {
   address: string;
@@ -26,52 +21,49 @@ export interface TemplateDetail extends TemplateSummary {
   recipients: TemplateRecipient[];
 }
 
-export async function listTemplates(userId: string): Promise<TemplateSummary[]> {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("templates")
-    .select("id, name, token_symbol, token_decimals, recipient_count, created_at")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (error) throw new Error(`Failed to load templates: ${error.message}`);
-
-  return (data ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    tokenSymbol: t.token_symbol,
-    tokenDecimals: t.token_decimals,
-    recipientCount: t.recipient_count,
-    createdAt: t.created_at,
-  }));
+interface TemplateRow {
+  id: string;
+  name: string;
+  token_address: string;
+  token_symbol: string;
+  token_decimals: number;
+  recipients: TemplateRecipient[];
+  recipient_count: number;
+  created_at: string;
 }
 
-/** Returns null when the template doesn't exist *or* isn't this user's. */
+const toSummary = (row: TemplateRow): TemplateSummary => ({
+  id: row.id,
+  name: row.name,
+  tokenSymbol: row.token_symbol,
+  tokenDecimals: row.token_decimals,
+  recipientCount: row.recipient_count,
+  createdAt: row.created_at,
+});
+
+export async function listTemplates(userId: string): Promise<TemplateSummary[]> {
+  const rows = (await db()`
+    SELECT id, name, token_address, token_symbol, token_decimals,
+           recipients, recipient_count, created_at
+    FROM templates
+    WHERE user_id = ${userId} AND deleted_at IS NULL
+    ORDER BY created_at DESC
+  `) as TemplateRow[];
+  return rows.map(toSummary);
+}
+
 export async function getTemplate(id: string, userId: string): Promise<TemplateDetail | null> {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("templates")
-    .select(
-      "id, name, token_address, token_symbol, token_decimals, recipients, recipient_count, created_at",
-    )
-    .eq("id", id)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (error || !data) return null;
-
-  return {
-    id: data.id,
-    name: data.name,
-    tokenAddress: data.token_address,
-    tokenSymbol: data.token_symbol,
-    tokenDecimals: data.token_decimals,
-    recipients: data.recipients as TemplateRecipient[],
-    recipientCount: data.recipient_count,
-    createdAt: data.created_at,
-  };
+  const rows = (await db()`
+    SELECT id, name, token_address, token_symbol, token_decimals,
+           recipients, recipient_count, created_at
+    FROM templates
+    WHERE id = ${id} AND user_id = ${userId} AND deleted_at IS NULL
+    LIMIT 1
+  `) as TemplateRow[];
+  const row = rows[0];
+  return row
+    ? { ...toSummary(row), tokenAddress: row.token_address, recipients: row.recipients }
+    : null;
 }
 
 export async function createTemplate(
@@ -84,37 +76,26 @@ export async function createTemplate(
     recipients: TemplateRecipient[];
   },
 ): Promise<string> {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("templates")
-    .insert({
-      user_id: userId,
-      name: input.name,
-      token_address: input.tokenAddress,
-      token_symbol: input.tokenSymbol,
-      token_decimals: input.tokenDecimals,
-      recipients: input.recipients,
-      recipient_count: input.recipients.length,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) throw new Error(`Failed to create template: ${error?.message}`);
-  return data.id;
+  const rows = (await db()`
+    INSERT INTO templates (
+      user_id, name, token_address, token_symbol, token_decimals,
+      recipients, recipient_count
+    ) VALUES (
+      ${userId}, ${input.name}, ${input.tokenAddress}, ${input.tokenSymbol},
+      ${input.tokenDecimals}, ${JSON.stringify(input.recipients)}::jsonb,
+      ${input.recipients.length}
+    )
+    RETURNING id
+  `) as { id: string }[];
+  return rows[0].id;
 }
 
-/** Returns false when the template doesn't exist or isn't this user's. */
 export async function deleteTemplate(id: string, userId: string): Promise<boolean> {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("templates")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .select("id")
-    .maybeSingle();
-
-  if (error) throw new Error(`Failed to delete template: ${error.message}`);
-  return data !== null;
+  const rows = (await db()`
+    UPDATE templates
+    SET deleted_at = now(), updated_at = now()
+    WHERE id = ${id} AND user_id = ${userId} AND deleted_at IS NULL
+    RETURNING id
+  `) as { id: string }[];
+  return rows.length > 0;
 }

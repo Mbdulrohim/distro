@@ -15,7 +15,7 @@ Distro is explicitly **not a custodian** — with one deliberate, narrow excepti
 - **Contracts**: Solidity + Foundry in `contracts/`. Tests in `contracts/test/`, one test file per contract. Run `forge test` before considering contract work done. Build on OpenZeppelin rather than reimplementing primitives.
 - **Frontend**: Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui in `web/`. wagmi/viem for chain interaction.
 - **Auth**: SIWE (Sign-In With Ethereum) → stateless JWT session cookie. Not RainbowKit, not Para. See `web/src/lib/auth/`.
-- **Backend**: Next.js route handlers (`web/src/app/api/`) + Supabase (Postgres). Migrations in `supabase/migrations/`.
+- **Backend**: Next.js route handlers (`web/src/app/api/`) + Neon Postgres. Migrations in `database/migrations/`.
 - **Indexer**: must be a long-running service — it cannot be serverless (needs a persistent event subscription). Not built yet.
 - **Chain**: Monad Mainnet (chain id 143) by default; testnet (10143) is reachable only under an explicit staging flag (`NEXT_PUBLIC_ENABLE_TESTNET`). Chain data comes from viem's built-in `monad` chain — don't hand-roll it. RPC URLs come from env; chain ids are protocol facts, not config.
 
@@ -45,7 +45,7 @@ Distro is explicitly **not a custodian** — with one deliberate, narrow excepti
 ```
 contracts/   Foundry — Multisend, MultisendNative (deployed); Distribution/DistributionFactory escrow (built, undeployed)
 web/         Next.js 15 app — marketing + dashboard + API routes
-supabase/    config + migrations
+database/    Neon Postgres migrations
 docs/        PRD, FEATURES, USER_FLOW, CONTRACT_SPEC, DATABASE, API, ROADMAP, BRAND, CTO_REVIEW, AUDIT_SCOPE
 PRODUCT.md   impeccable's strategic design context
 DESIGN.md    impeccable's visual system

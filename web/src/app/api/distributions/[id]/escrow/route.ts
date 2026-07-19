@@ -5,7 +5,7 @@ import { isAddress } from "viem";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { db } from "@/lib/db/client";
 import { getDistributionFactoryAddress } from "@/config/contracts";
 import { verifyEscrowAddress } from "@/lib/distributions/verify-receipt";
 
@@ -47,17 +47,21 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     );
   }
 
-  const supabase = createServiceRoleClient();
-
   // Ownership + kind check. A distribution you don't own must 404, not leak
   // its existence; an immediate-kind row must never grow an escrow address.
-  const { data: dist } = await supabase
-    .from("distributions")
-    .select("id, kind, escrow_address, chain_id, salt")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .single();
+  const distributions = (await db()`
+    SELECT id, kind, escrow_address, chain_id, salt
+    FROM distributions
+    WHERE id = ${id} AND user_id = ${userId} AND deleted_at IS NULL
+    LIMIT 1
+  `) as {
+    id: string;
+    kind: "immediate" | "scheduled";
+    escrow_address: string | null;
+    chain_id: number;
+    salt: string | null;
+  }[];
+  const dist = distributions[0];
 
   if (!dist || dist.kind !== "scheduled") {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -91,12 +95,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     );
   }
 
-  const { error } = await supabase
-    .from("distributions")
-    .update({ escrow_address: parsed.data.escrowAddress, status: "ready" })
-    .eq("id", id);
-
-  if (error) {
+  try {
+    await db()`
+      UPDATE distributions
+      SET escrow_address = ${parsed.data.escrowAddress}, status = 'ready'
+      WHERE id = ${id}
+    `;
+  } catch (error) {
     console.error("Failed to record escrow address", error);
     return NextResponse.json({ error: "Could not record the escrow address." }, { status: 500 });
   }

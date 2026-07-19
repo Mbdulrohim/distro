@@ -27,7 +27,7 @@ Next.js route handlers backing the dashboard. Auth is SIWE session-cookie based 
 
 ## Uploads
 
-- `POST /api/uploads/csv` — upload + validate a recipient CSV. Validates addresses, duplicates (warn, don't reject), amounts, and total-vs-balance. Stores the original in Supabase Storage and returns a reference plus structured per-row warnings/errors.
+- `POST /api/uploads/csv` — upload + validate a recipient CSV. Validates addresses, duplicates (warn, don't reject), amounts, and total-vs-balance. Stores the original in object storage and returns a reference plus structured per-row warnings/errors.
 
 ## Execution
 
