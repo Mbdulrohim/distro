@@ -91,18 +91,10 @@ export function ScheduledRetryPanel({
               credentials: "same-origin",
               body: JSON.stringify({
                 txHash: ev.result.txHash,
-                blockNumber: ev.result.blockNumber.toString(),
-                gasUsed: ev.result.gasUsed.toString(),
-                payments: ev.result.payments.map((p) => ({
-                  recipient: p.recipient,
-                  amount: p.amount.toString(),
-                  status: p.status,
-                  // No renumbering here — `retry`'s positions ARE the
-                  // original committed positions, unlike a fresh Multisend
-                  // payload.
-                  originBatchIndex: chunk.chunkIndex,
-                  originIndexInBatch: p.index,
-                })),
+                // The endpoint asserts this against the receipt's own
+                // chunkIndex and rejects a mismatch — it's a routing hint,
+                // not something the mapping's correctness depends on.
+                chunkIndex: chunk.chunkIndex,
               }),
             });
           }

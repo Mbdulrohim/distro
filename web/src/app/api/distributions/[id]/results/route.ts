@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { isAddress } from "viem";
+import { getAddress, type Address } from "viem";
 import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { verifyDistributionReceipt } from "@/lib/distributions/verify-receipt";
 
 /**
  * Record the outcome of an executed batch.
@@ -25,18 +26,6 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 const resultSchema = z.object({
   batchIndex: z.number().int().min(0),
   txHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "Not a transaction hash"),
-  blockNumber: z.string().regex(/^\d+$/),
-  gasUsed: z.string().regex(/^\d+$/),
-  payments: z
-    .array(
-      z.object({
-        recipient: z.string().refine(isAddress, "Not a valid address"),
-        amount: z.string().regex(/^\d+$/),
-        index: z.number().int().min(0),
-        status: z.enum(["paid", "failed"]),
-      }),
-    )
-    .min(1),
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -63,7 +52,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       { status: 400 },
     );
   }
-  const { batchIndex, txHash, blockNumber, gasUsed, payments } = parsed.data;
+  const { batchIndex, txHash } = parsed.data;
 
   const supabase = createServiceRoleClient();
 
@@ -71,13 +60,75 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   // own must 404, not leak its existence.
   const { data: dist } = await supabase
     .from("distributions")
-    .select("id, recipient_count, kind")
+    .select("id, chain_id, token_address, kind, multisend_address, escrow_address")
     .eq("id", id)
     .eq("user_id", userId)
     .is("deleted_at", null)
     .single();
 
   if (!dist) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
+  const contract = (
+    dist.kind === "scheduled" ? dist.escrow_address : dist.multisend_address
+  ) as Address | null;
+  if (!contract)
+    return NextResponse.json({ error: "Distribution contract is not recorded." }, { status: 409 });
+
+  let verified;
+  try {
+    verified = await verifyDistributionReceipt({
+      chainId: dist.chain_id,
+      txHash: txHash as `0x${string}`,
+      contract,
+      kind:
+        dist.kind === "scheduled"
+          ? "scheduled"
+          : dist.token_address === "0x0000000000000000000000000000000000000000"
+            ? "immediate-native"
+            : "immediate-erc20",
+      batchIndex,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not verify transaction receipt." },
+      { status: 400 },
+    );
+  }
+
+  const { data: expected } = await supabase
+    .from("recipients")
+    .select("id, index_in_batch, address, amount")
+    .eq("distribution_id", id)
+    .eq("batch_index", batchIndex)
+    .order("index_in_batch", { ascending: true });
+  if (!expected || expected.length !== verified.payments.length) {
+    return NextResponse.json(
+      { error: "Receipt does not match this distribution batch." },
+      { status: 409 },
+    );
+  }
+  for (const payment of verified.payments) {
+    const row = expected.find((candidate) => candidate.index_in_batch === payment.index);
+    if (!row || getAddress(row.address) !== payment.recipient || row.amount !== payment.amount) {
+      return NextResponse.json(
+        { error: "Receipt payment does not match committed recipients." },
+        { status: 409 },
+      );
+    }
+  }
+
+  const { data: prior } = await supabase
+    .from("distribution_transactions")
+    .select("id, tx_hash")
+    .eq("distribution_id", id)
+    .eq("batch_index", batchIndex)
+    .maybeSingle();
+  if (prior && prior.tx_hash?.toLowerCase() !== txHash.toLowerCase()) {
+    return NextResponse.json(
+      { error: "A different transaction is already recorded for this batch." },
+      { status: 409 },
+    );
+  }
 
   // Upsert the transaction — idempotent on (distribution_id, batch_index).
   const { data: tx, error: txError } = await supabase
@@ -88,8 +139,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         batch_index: batchIndex,
         tx_hash: txHash,
         status: "mined" as const,
-        block_number: blockNumber,
-        gas_used: gasUsed,
+        block_number: verified.blockNumber,
+        gas_used: verified.gasUsed,
         mined_at: new Date().toISOString(),
       },
       { onConflict: "distribution_id,batch_index" },
@@ -104,7 +155,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   // Update each recipient by POSITION. Matching on address would corrupt a
   // distribution that intentionally pays one address twice.
-  for (const p of payments) {
+  for (const p of verified.payments) {
     const { error } = await supabase
       .from("recipients")
       .update({

@@ -6,6 +6,8 @@ import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { getDistributionFactoryAddress } from "@/config/contracts";
+import { verifyEscrowAddress } from "@/lib/distributions/verify-receipt";
 
 /**
  * Record a scheduled distribution's escrow address once `createDistribution`
@@ -51,7 +53,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   // its existence; an immediate-kind row must never grow an escrow address.
   const { data: dist } = await supabase
     .from("distributions")
-    .select("id, kind, escrow_address")
+    .select("id, kind, escrow_address, chain_id, salt")
     .eq("id", id)
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -59,6 +61,22 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   if (!dist || dist.kind !== "scheduled") {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
+  }
+  if (!dist.salt)
+    return NextResponse.json({ error: "Distribution has no escrow salt." }, { status: 409 });
+  try {
+    await verifyEscrowAddress({
+      chainId: dist.chain_id,
+      factory: getDistributionFactoryAddress(dist.chain_id),
+      creator: session.address as `0x${string}`,
+      salt: dist.salt as `0x${string}`,
+      escrow: parsed.data.escrowAddress as `0x${string}`,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not verify escrow address." },
+      { status: 400 },
+    );
   }
   // Idempotent: a retried post with the same address is a no-op success,
   // matching this address to a DIFFERENT one would mean two on-chain clones

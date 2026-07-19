@@ -7,6 +7,8 @@ import { findUserId } from "@/lib/db/users";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { createDistributionSchema, computeTotal } from "@/lib/validation/distribution";
 import { isSupportedChain } from "@/config/chains";
+import { getMultisendAddress, getMultisendNativeAddress } from "@/config/contracts";
+import { maxRecipientsPerBatch } from "@/lib/gas/estimate";
 
 /**
  * Create a draft distribution with its recipients.
@@ -47,6 +49,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const isNative = input.tokenAddress === "0x0000000000000000000000000000000000000000";
+  let multisendAddress: `0x${string}` | null = null;
+  if (input.kind === "immediate") {
+    // Canonical deployment selection is a server invariant, never client input.
+    multisendAddress = isNative
+      ? getMultisendNativeAddress(input.chainId)
+      : getMultisendAddress(input.chainId);
+  }
+
   const userId = await findUserId(session.address);
   if (!userId) {
     return NextResponse.json({ error: "Account not provisioned." }, { status: 409 });
@@ -69,7 +80,7 @@ export async function POST(request: Request) {
     .insert({
       user_id: userId,
       chain_id: input.chainId,
-      multisend_address: input.kind === "immediate" ? input.multisendAddress : null,
+      multisend_address: multisendAddress,
       name: input.name,
       token_address: input.tokenAddress,
       token_symbol: input.tokenSymbol,
@@ -95,10 +106,11 @@ export async function POST(request: Request) {
   // Position is load-bearing: it maps a Paid/PaymentFailed event (which carries
   // only an index) back to its row, and is the retry key. Preserve input order
   // exactly — never sort.
+  const batchSize = maxRecipientsPerBatch();
   const rows = input.recipients.map((r, i) => ({
     distribution_id: dist.id,
-    batch_index: 0,
-    index_in_batch: i,
+    batch_index: Math.floor(i / batchSize),
+    index_in_batch: i % batchSize,
     address: r.address,
     amount: r.amount,
     status: "pending" as const,

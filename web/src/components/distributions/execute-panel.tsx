@@ -30,15 +30,9 @@ async function persistBatch(distributionId: string, r: BatchResult): Promise<voi
       body: JSON.stringify({
         batchIndex: r.batchIndex,
         txHash: r.txHash,
-        blockNumber: r.blockNumber.toString(),
-        gasUsed: r.gasUsed.toString(),
-        payments: r.payments.map((p) => ({
-          recipient: p.recipient,
-          amount: p.amount.toString(),
-          index: p.index,
-          status: p.status,
-        })),
       }),
+    }).then((res) => {
+      if (!res.ok) throw new Error("Could not persist verified batch results.");
     });
   } catch (e) {
     console.error("Failed to persist batch results; chain state is unaffected", e);

@@ -34,15 +34,9 @@ async function persistChunk(
       body: JSON.stringify({
         batchIndex: r.chunkIndex,
         txHash: r.txHash,
-        blockNumber: r.blockNumber.toString(),
-        gasUsed: r.gasUsed.toString(),
-        payments: r.payments.map((p) => ({
-          recipient: p.recipient,
-          amount: p.amount.toString(),
-          index: p.index,
-          status: p.status,
-        })),
       }),
+    }).then((res) => {
+      if (!res.ok) throw new Error("Could not persist verified chunk results.");
     });
   } catch (e) {
     console.error("Failed to persist chunk results; chain state is unaffected", e);

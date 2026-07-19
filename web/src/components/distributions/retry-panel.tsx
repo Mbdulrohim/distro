@@ -17,10 +17,13 @@ import type { RecipientRow } from "@/lib/db/distribution";
  * happened — the tokens are still in the sender's wallet — so retrying is just
  * another `distribute` with the failed entries.
  *
- * The one thing that IS special: the retry payload is renumbered (4 failures
- * become indices 0-3), so each result must be mapped back to the recipient's
- * ORIGINAL position, not the retry index. That mapping is carried here and
- * enforced by the /retry endpoint.
+ * The retry payload is renumbered (4 failures become indices 0-3), but this
+ * component does NOT carry the mapping back to original positions — the
+ * /retry endpoint derives that itself, server-side, from the currently-failed
+ * rows in canonical order. A client-asserted mapping can't be trusted to
+ * attach a real onchain event to the correct ledger row when duplicate
+ * (address, amount) entries exist, so it's not sent at all. See the endpoint's
+ * own doc comment for the full reasoning.
  */
 
 interface RetryPanelProps {
@@ -50,13 +53,6 @@ export function RetryPanel({ distributionId, tokenAddress, chainId, failed }: Re
     setPhase("running");
     setError(null);
 
-    // Position map: retry index i -> original (batch, index). This is the whole
-    // point of the retry path; without it, results land on the wrong people.
-    const origin = failed.map((r) => ({
-      batchIndex: r.batchIndex,
-      indexInBatch: r.indexInBatch,
-    }));
-
     try {
       const stream = executeDistribution({
         config,
@@ -85,19 +81,7 @@ export function RetryPanel({ distributionId, tokenAddress, chainId, failed }: Re
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({
-              txHash: ev.result.txHash,
-              blockNumber: ev.result.blockNumber.toString(),
-              gasUsed: ev.result.gasUsed.toString(),
-              payments: ev.result.payments.map((p) => ({
-                recipient: p.recipient,
-                amount: p.amount.toString(),
-                status: p.status,
-                // Map the renumbered result back to the original position.
-                originBatchIndex: origin[p.index].batchIndex,
-                originIndexInBatch: origin[p.index].indexInBatch,
-              })),
-            }),
+            body: JSON.stringify({ txHash: ev.result.txHash }),
           });
         } else if (ev.type === "done") {
           setPhase("done");
