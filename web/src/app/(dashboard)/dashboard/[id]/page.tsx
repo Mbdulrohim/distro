@@ -11,7 +11,8 @@ import { RecipientResults } from "@/components/distributions/recipient-results";
 import { RetryPanel } from "@/components/distributions/retry-panel";
 import { ScheduledRetryPanel } from "@/components/distributions/scheduled-retry-panel";
 import { ExecuteScheduledChunksPanel } from "@/components/distributions/execute-scheduled-chunks-panel";
-import { isAddress } from "viem";
+import { ExecutePanel } from "@/components/distributions/execute-panel";
+import { isAddress, type Address } from "viem";
 import { formatAmountWithSymbol } from "@/lib/recipients/format";
 import { truncateAddress } from "@/lib/format";
 import { supportedChains } from "@/config/chains";
@@ -97,7 +98,17 @@ export default async function DistributionDetailPage({
             {new Date(dist.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <StatusBadge status={dist.status} count={failedCount} />
+        <div className="flex flex-wrap gap-2">
+          {dist.status === "draft" ? (
+            <Link
+              href={`/dashboard/new?template=${dist.id}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-surface"
+            >
+              Duplicate as template
+            </Link>
+          ) : null}
+          <StatusBadge status={dist.status} count={failedCount} />
+        </div>
       </div>
 
       {/* Summary — every figure counted from the rows, none assumed */}
@@ -129,6 +140,30 @@ export default async function DistributionDetailPage({
             escrowAddress={dist.escrowAddress as `0x${string}`}
             executeAfter={dist.executeAfter}
             chunks={chunksByIndex.map(({ index, payload }) => ({ index, payload }))}
+          />
+        </section>
+      ) : null}
+
+      {/* Draft distributions: ready to execute immediately */}
+      {dist.status === "draft" && dist.kind === "immediate" ? (
+        <section className="mb-8">
+          <h2 className="mb-2 text-sm font-medium">Execute</h2>
+          <ExecutePanel
+            distributionId={dist.id}
+            token={{
+              ref: dist.tokenAddress as `0x${string}`,
+              address: isAddress(dist.tokenAddress) ? (dist.tokenAddress as Address) : undefined,
+              isNative: dist.tokenAddress === "0x0000000000000000000000000000000000000000",
+              symbol: dist.tokenSymbol,
+              decimals: dist.tokenDecimals,
+              distributable: true,
+            }}
+            recipients={recipients.map((r, idx) => ({
+              line: idx + 1,
+              address: r.address as Address,
+              amount: BigInt(r.amount),
+              amountInput: String(Number(BigInt(r.amount)) / Math.pow(10, dist.tokenDecimals)),
+            }))}
           />
         </section>
       ) : null}
