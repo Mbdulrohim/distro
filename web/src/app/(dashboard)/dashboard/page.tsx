@@ -197,6 +197,22 @@ function EmptyState() {
           </Button>
         </div>
       </div>
+
+      <ol className="relative mx-auto mt-12 grid max-w-3xl gap-6 text-left sm:grid-cols-4">
+        {[
+          { step: "1", label: "Name it & pick a token" },
+          { step: "2", label: "Add recipients — CSV, paste, or one by one" },
+          { step: "3", label: "Choose to send now or schedule it" },
+          { step: "4", label: "Review the total, then approve" },
+        ].map((s) => (
+          <li key={s.step} className="flex flex-col items-center gap-2 text-center">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-light-purple text-sm font-semibold text-primary-text">
+              {s.step}
+            </span>
+            <span className="text-xs text-muted-foreground">{s.label}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

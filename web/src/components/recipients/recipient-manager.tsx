@@ -70,6 +70,7 @@ export function RecipientManager({
   const [pasteText, setPasteText] = useState("");
   const [manualAddress, setManualAddress] = useState("");
   const [manualAmount, setManualAmount] = useState("");
+  const [bulkAmount, setBulkAmount] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Validate live. Row position (1-based) is the "line" so errors map to rows.
@@ -135,6 +136,13 @@ export function RecipientManager({
 
   function removeRow(id: string) {
     setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  /** Sets every row to the same amount — the common case (an equal airdrop
+   * or reward) shouldn't require retyping the amount once per recipient. */
+  function onApplyToAll() {
+    if (bulkAmount.trim() === "") return;
+    setRows((prev) => prev.map((r) => ({ ...r, amount: bulkAmount.trim() })));
   }
 
   function onMergeDuplicates() {
@@ -206,6 +214,30 @@ export function RecipientManager({
           </Button>
         </div>
       </div>
+
+      {/* Same amount for everyone — the common case (an equal airdrop or
+          reward) shouldn't mean retyping the amount once per row. */}
+      {rows.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Same amount for everyone?</span>
+          <input
+            value={bulkAmount}
+            onChange={(e) => setBulkAmount(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onApplyToAll()}
+            placeholder="amount"
+            inputMode="decimal"
+            className="h-8 w-28 rounded-md border border-border bg-background px-2.5 text-right font-mono text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onApplyToAll}
+            disabled={bulkAmount.trim() === ""}
+          >
+            Apply to all {rows.length} recipients
+          </Button>
+        </div>
+      ) : null}
 
       {/* Summary */}
       {rows.length > 0 ? (

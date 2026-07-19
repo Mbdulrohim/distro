@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Distro Launch Trailer</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --ink: #1f2430;
+        --muted: #5b6270;
+        --primary: #6d5ef7;
+        --primary-strong: #5646d6;
+        --secondary: #8b7cff;
+        --lavender: #efeaff;
+        --soft: #f7f5ff;
+        --border: #e8e4f7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--soft);
+        color: var(--ink);
+        font-family:
+          Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      body {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 18px;
+        padding: 18px;
+      }
+
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .title {
+        margin-right: auto;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+      }
+
+      button,
+      select {
+        height: 40px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+        padding: 0 14px;
+        box-shadow: 0 8px 28px rgba(109, 94, 247, 0.08);
+      }
+
+      button.primary {
+        border-color: transparent;
+        background: var(--primary);
+        color: white;
+      }
+
+      .stage {
+        position: relative;
+        display: grid;
+        min-height: 0;
+        place-items: center;
+      }
+
+      canvas {
+        width: min(100%, calc((100vh - 96px) * 16 / 9));
+        max-height: calc(100vh - 96px);
+        aspect-ratio: 16 / 9;
+        border-radius: 28px;
+        background: white;
+        box-shadow:
+          0 24px 72px rgba(109, 94, 247, 0.18),
+          0 8px 24px rgba(31, 36, 48, 0.08);
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="title">Distro launch trailer · 4K canvas · 60fps</div>
+      <button id="play" class="primary">Play</button>
+      <button id="restart">Restart</button>
+      <button id="record">Record WebM</button>
+      <select id="quality" aria-label="Recording quality">
+        <option value="3840x2160" selected>4K 16:9</option>
+        <option value="2160x3840">9:16 crop guide</option>
+        <option value="1920x1080">1080p preview</option>
+      </select>
+      <span class="hint" id="status">Space toggles playback. Recording runs the full trailer.</span>
+    </div>
+    <main class="stage">
+      <canvas id="film" width="3840" height="2160"></canvas>
+    </main>
+
+    <script>
+      const canvas = document.getElementById("film");
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const playButton = document.getElementById("play");
+      const restartButton = document.getElementById("restart");
+      const recordButton = document.getElementById("record");
+      const quality = document.getElementById("quality");
+      const statusText = document.getElementById("status");
+
+      const C = {
+        bg: "#FFFFFF",
+        ink: "#1F2430",
+        muted: "#5B6270",
+        primary: "#6D5EF7",
+        primaryStrong: "#5646D6",
+        secondary: "#8B7CFF",
+        lavender: "#EFEAFF",
+        soft: "#F7F5FF",
+        border: "#E8E4F7",
+        success: "#1B8A5A",
+        warning: "#9A6B00",
+      };
+
+      const W = 3840;
+      const H = 2160;
+      const FPS = 60;
+      const DURATION = 68;
+      const sceneTimes = [0, 7, 13, 19, 27, 35, 43, 51, 57, 62, 68];
+      const walletRows = Array.from({ length: 42 }, (_, i) => ({
+        x: 190 + (i % 4) * 840,
+        y: 320 + Math.floor(i / 4) * 145,
+        amount: [1250, 420, 8400, 75, 2600, 12000, 500, 990][i % 8],
+        seed: i * 37,
+      }));
+      const recipients = Array.from({ length: 18 }, (_, i) => ({
+        name: ["Core team", "Guild lead", "Reviewer", "Builder", "Mentor", "Designer"][i % 6],
+        amount: [2400, 900, 450, 1200, 750, 1600][i % 6],
+        y: i,
+      }));
+
+      let startedAt = performance.now();
+      let pausedAt = 0;
+      let isPlaying = false;
+      let audio = null;
+      let recorder = null;
+      let chunks = [];
+
+      function clamp(n, a = 0, b = 1) {
+        return Math.max(a, Math.min(b, n));
+      }
+
+      function mix(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function ease(t) {
+        return 1 - Math.pow(1 - clamp(t), 3);
+      }
+
+      function easeInOut(t) {
+        t = clamp(t);
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      }
+
+      function spring(t) {
+        t = clamp(t);
+        return 1 + Math.sin(t * Math.PI * 3.2) * Math.pow(1 - t, 2.2) * 0.16 - Math.pow(1 - t, 5);
+      }
+
+      function sceneProgress(time, index) {
+        return clamp((time - sceneTimes[index]) / (sceneTimes[index + 1] - sceneTimes[index]));
+      }
+
+      function alphaFor(time, index, fade = 0.8) {
+        const start = sceneTimes[index];
+        const end = sceneTimes[index + 1];
+        return clamp((time - start) / fade) * clamp((end - time) / fade);
+      }
+
+      function setFont(size, weight = 600, mono = false) {
+        ctx.font = `${weight} ${size}px ${mono ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Geist, Inter, ui-sans-serif, system-ui, sans-serif"}`;
+      }
+
+      function text(str, x, y, size, color = C.ink, weight = 620, align = "left", alpha = 1, mono = false) {
+        ctx.save();
+        ctx.globalAlpha *= alpha;
+        ctx.fillStyle = color;
+        ctx.textAlign = align;
+        ctx.textBaseline = "alphabetic";
+        setFont(size, weight, mono);
+        ctx.fillText(str, x, y);
+        ctx.restore();
+      }
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function fillRound(x, y, w, h, r, fill, stroke, alpha = 1) {
+        ctx.save();
+        ctx.globalAlpha *= alpha;
+        roundRect(x, y, w, h, r);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function mesh(time, intensity = 1) {
+        ctx.fillStyle = C.bg;
+        ctx.fillRect(0, 0, W, H);
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, "#FFFFFF");
+        g.addColorStop(1, "#F7F5FF");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        const blobs = [
+          [740 + Math.sin(time * 0.4) * 90, 390, 850, `rgba(109,94,247,${0.15 * intensity})`],
+          [3060 + Math.cos(time * 0.35) * 120, 520, 760, `rgba(139,124,255,${0.13 * intensity})`],
+          [1850, 1960 + Math.sin(time * 0.25) * 80, 1160, `rgba(109,94,247,${0.08 * intensity})`],
+        ];
+        for (const [x, y, r, color] of blobs) {
+          const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+          grad.addColorStop(0, color);
+          grad.addColorStop(1, "rgba(255,255,255,0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, W, H);
+        }
+      }
+
+      function logo(x, y, size, color = C.primary, alpha = 1) {
+        ctx.save();
+        ctx.globalAlpha *= alpha;
+        ctx.translate(x, y);
+        ctx.scale(size / 128, size / 128);
+        ctx.fillStyle = color;
+        const p = new Path2D("M35 32 H62 A32 32 0 0 1 62 96 H35 Z M49 46 H60 A18 18 0 0 1 60 82 H49 Z");
+        ctx.fill(p, "evenodd");
+        fillRound(50, 52, 18, 4.4, 2.2, color);
+        fillRound(50, 61.8, 24, 4.4, 2.2, color);
+        fillRound(50, 71.6, 15, 4.4, 2.2, color);
+        ctx.restore();
+      }
+
+      function drawWalletRow(row, index, progress, chaos = 1) {
+        const x = row.x + Math.sin(progress * 10 + row.seed) * 18 * chaos;
+        const y = row.y + Math.cos(progress * 8 + row.seed) * 22 * chaos;
+        fillRound(x, y, 690, 86, 24, "rgba(255,255,255,0.82)", C.border, 0.72);
+        text(`0x${(row.seed * 92821).toString(16).padStart(8, "0")}...${(row.seed * 1777).toString(16).padStart(4, "0")}`, x + 34, y + 54, 30, C.muted, 520, "left", 0.9, true);
+        text(`${row.amount.toLocaleString()} USDC`, x + 650, y + 54, 30, C.ink, 620, "right", 0.9, true);
+        if (index % 5 === 0) text("copy", x + 32, y - 16, 24, C.primaryStrong, 620, "left", progress * 0.8);
+        if (index % 7 === 0) text("paste", x + 530, y + 126, 24, C.warning, 620, "left", progress * 0.7);
+      }
+
+      function dashboard(x, y, w, h, progress, mode = "hero") {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.shadowColor = "rgba(109,94,247,0.18)";
+        ctx.shadowBlur = 70;
+        ctx.shadowOffsetY = 28;
+        fillRound(0, 0, w, h, 42, "#FFFFFF", C.border);
+        ctx.shadowBlur = 0;
+        fillRound(0, 0, w, 112, 42, "#FFFFFF", null);
+        logo(52, 30, 54, C.primary);
+        text("Distro", 126, 71, 36, C.ink, 680);
+        const tabs = ["Create", "Recipients", "Schedule", "Review", "Execute"];
+        tabs.forEach((tab, i) => {
+          const active = mode === "hero" ? i <= Math.floor(progress * 4.9) : i === 4;
+          fillRound(390 + i * 205, 34, 166, 50, 18, active ? C.soft : "#fff", active ? C.border : "transparent", 0.95);
+          text(tab, 473 + i * 205, 68, 22, active ? C.primaryStrong : C.muted, 620, "center");
+        });
+        fillRound(w - 330, 34, 244, 50, 18, C.primary, null);
+        text("Monad Mainnet", w - 208, 68, 22, "#fff", 620, "center");
+
+        fillRound(64, 170, 430, 620, 32, C.soft, C.border);
+        text("Create Distribution", 104, 236, 38, C.ink, 650);
+        ["Q3 contributor payouts", "USDC", "Execute now"].forEach((item, i) => {
+          fillRound(104, 292 + i * 112, 350, 72, 20, "#fff", C.border);
+          text(item, 130, 339 + i * 112, 25, i === 0 ? C.ink : C.muted, 560);
+        });
+        fillRound(104, 660, 250, 74, 22, C.primary, null);
+        text("Review", 229, 709, 27, "#fff", 650, "center");
+
+        fillRound(548, 170, w - 612, 620, 32, "#fff", C.border);
+        text(mode === "execute" ? "Execution" : "Recipients", 602, 236, 38, C.ink, 650);
+        const rows = mode === "execute" ? recipients : recipients.slice(0, 8);
+        rows.slice(0, 8).forEach((r, i) => {
+          const yy = 292 + i * 56;
+          fillRound(602, yy, w - 720, 42, 16, i % 2 ? "#fff" : C.soft, null);
+          text(`0x${(900000 + i * 42111).toString(16)}...${(4000 + i * 39).toString(16)}`, 628, yy + 29, 21, C.muted, 500, "left", 1, true);
+          text(`${r.amount.toLocaleString()} USDC`, w - 330, yy + 29, 21, C.ink, 620, "right", 1, true);
+          const done = mode === "execute" && progress > i / 8;
+          fillRound(w - 270, yy + 8, 120, 28, 14, done ? "#E8F7EF" : C.soft, null);
+          text(done ? "Paid" : "Ready", w - 210, yy + 29, 17, done ? C.success : C.muted, 650, "center");
+        });
+        const p = mode === "execute" ? clamp(progress) : 0.72;
+        fillRound(602, 700, w - 720, 34, 17, C.soft, null);
+        fillRound(602, 700, (w - 720) * p, 34, 17, C.primary, null);
+        text(`${Math.round(p * 100)}%`, w - 120, 727, 24, C.primaryStrong, 700, "right");
+        ctx.restore();
+      }
+
+      function statCard(x, y, label, value, suffix, p) {
+        fillRound(x, y, 520, 260, 32, "#fff", C.border, 0.96);
+        text(label, x + 42, y + 72, 28, C.muted, 560);
+        text(`${Math.round(value * ease(p)).toLocaleString()}${suffix}`, x + 42, y + 168, 70, C.ink, 680);
+      }
+
+      function sceneOne(time) {
+        const p = sceneProgress(time, 0);
+        const a = alphaFor(time, 0);
+        mesh(time, 0.8);
+        walletRows.forEach((row, i) => drawWalletRow(row, i, p, 1.4));
+        ctx.save();
+        ctx.globalAlpha = a;
+        text("Distributing tokens", 1920, 785, 126, C.ink, 690, "center");
+        text("shouldn't feel like manual work.", 1920, 930, 126, C.ink, 690, "center");
+        text("copy · paste · repeat", 1920, 1055, 38, C.primaryStrong, 640, "center", ease(p));
+        ctx.restore();
+      }
+
+      function sceneTwo(time) {
+        const p = sceneProgress(time, 1);
+        mesh(time, 0.55);
+        const offset = ease(p) * 420;
+        for (let i = 0; i < 9; i++) {
+          const x = 670 + i * 310 - offset;
+          fillRound(x, 825, 250, 250, 36, "#fff", C.border, alphaFor(time, 1));
+          text("Sign", x + 125, 910, 34, C.ink, 650, "center");
+          text("Wait", x + 125, 988, 28, C.muted, 560, "center");
+          text("Repeat", x + 125, 1048, 24, C.primaryStrong, 620, "center");
+          if (i < 8) {
+            ctx.strokeStyle = `rgba(109,94,247,${0.35 * alphaFor(time, 1)})`;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(x + 265, 950);
+            ctx.lineTo(x + 300, 950);
+            ctx.stroke();
+          }
+        }
+        text("Yet that's how most teams still operate.", 1920, 520, 104, C.ink, 690, "center", alphaFor(time, 1));
+        text("Slow. Repetitive. Painful.", 1920, 1280, 54, C.muted, 560, "center", alphaFor(time, 1));
+      }
+
+      function sceneThree(time) {
+        const p = sceneProgress(time, 2);
+        mesh(time, 1.2);
+        const radius = 2600 * spring(p);
+        const glow = ctx.createRadialGradient(1920, 1080, 0, 1920, 1080, radius);
+        glow.addColorStop(0, "rgba(109,94,247,0.28)");
+        glow.addColorStop(0.35, "rgba(139,124,255,0.14)");
+        glow.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, W, H);
+        logo(1772, 645 - 40 * (1 - ease(p)), 296, C.primary, alphaFor(time, 2));
+        text("Distro", 1920, 1115, 156, C.ink, 720, "center", alphaFor(time, 2));
+        text("Onchain Distribution Engine", 1920, 1214, 50, C.primaryStrong, 620, "center", alphaFor(time, 2));
+      }
+
+      function sceneFour(time) {
+        const p = sceneProgress(time, 3);
+        mesh(time, 1);
+        const z = mix(0.82, 1, easeInOut(p));
+        ctx.save();
+        ctx.translate(1920, 1090);
+        ctx.scale(z, z);
+        ctx.rotate((1 - ease(p)) * -0.035);
+        dashboard(-1450, -520, 2900, 1040, p, "hero");
+        ctx.restore();
+        text("One beautiful workflow.", 310, 350, 82, C.ink, 680, "left", alphaFor(time, 3));
+      }
+
+      function sceneFive(time) {
+        const p = sceneProgress(time, 4);
+        mesh(time, 0.85);
+        text("Create once. Distribute at scale.", 1920, 320, 86, C.ink, 680, "center", alphaFor(time, 4));
+        const steps = ["Create Distribution", "Upload CSV", "Choose Token", "Schedule", "Approve", "Done"];
+        steps.forEach((step, i) => {
+          const local = clamp((p * 6.4 - i) / 0.8);
+          const x = 585 + i * 540;
+          const y = 1040 + Math.sin(i) * 90;
+          fillRound(x - 185, y - 90, 370, 180, 38, local > 0.05 ? "#fff" : "rgba(255,255,255,0.48)", C.border, alphaFor(time, 4));
+          logo(x - 150, y - 30, 60, local > 0.8 ? C.primary : C.muted, alphaFor(time, 4));
+          text(step, x + 28, y + 12, 30, local > 0.8 ? C.ink : C.muted, 640, "left", alphaFor(time, 4));
+          if (i < steps.length - 1) {
+            ctx.strokeStyle = `rgba(109,94,247,${0.55 * ease(local) * alphaFor(time, 4)})`;
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(x + 210, y);
+            ctx.bezierCurveTo(x + 330, y, x + 345, 1040 + Math.sin(i + 1) * 90, x + 350, 1040 + Math.sin(i + 1) * 90);
+            ctx.stroke();
+          }
+        });
+      }
+
+      function sceneSix(time) {
+        const p = sceneProgress(time, 5);
+        mesh(time, 0.95);
+        dashboard(270, 590, 1780, 960, ease(p), "hero");
+        statCard(2180, 620, "Recipients", 1248, "", p);
+        statCard(2760, 620, "Volume", 820000, " USDC", p);
+        statCard(2180, 940, "Status", 100, "%", p);
+        statCard(2760, 940, "History", 86, " runs", p);
+        fillRound(2180, 1280, 1100, 230, 32, "#fff", C.border, 0.96);
+        text("Execution timeline", 2230, 1352, 34, C.ink, 650);
+        for (let i = 0; i < 7; i++) {
+          const x = 2250 + i * 145;
+          ctx.fillStyle = i / 6 < p ? C.primary : C.lavender;
+          ctx.beginPath();
+          ctx.arc(x, 1435, 18, 0, Math.PI * 2);
+          ctx.fill();
+          if (i < 6) {
+            ctx.strokeStyle = i / 6 < p ? C.primary : C.border;
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(x + 28, 1435);
+            ctx.lineTo(x + 118, 1435);
+            ctx.stroke();
+          }
+        }
+      }
+
+      function sceneSeven(time) {
+        const p = sceneProgress(time, 6);
+        mesh(time, 0.9);
+        dashboard(615, 485, 2610, 1190, ease(p), "execute");
+        text("Verified on Monad.", 1920, 320, 92, C.ink, 690, "center", alphaFor(time, 6));
+        text("Every recipient. Every payment. Every hash.", 1920, 430, 42, C.muted, 560, "center", alphaFor(time, 6));
+      }
+
+      function sceneEight(time) {
+        const p = sceneProgress(time, 7);
+        mesh(time, 1);
+        text("Built for the teams moving value.", 1920, 360, 88, C.ink, 690, "center", alphaFor(time, 7));
+        const items = ["Payroll", "Airdrops", "Grants", "Community Rewards", "DAO Compensation", "Creator Revenue", "Hackathon Prizes"];
+        items.forEach((item, i) => {
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          const local = clamp((p * 8 - i) / 0.8);
+          const x = 800 + col * 760 + (row === 2 ? 380 : 0);
+          const y = 760 + row * 290;
+          fillRound(x, y, 650, 170, 42, "#fff", C.border, alphaFor(time, 7) * ease(local));
+          text(item, x + 325, y + 105, 42, C.ink, 650, "center", alphaFor(time, 7) * ease(local));
+        });
+      }
+
+      function sceneNine(time) {
+        const p = sceneProgress(time, 8);
+        mesh(time, 1.35);
+        const words = ["Fast.", "Cheap.", "Scalable."];
+        words.forEach((word, i) => {
+          text(word, 920 + i * 610, 850, 94, C.ink, 690, "center", alphaFor(time, 8) * ease(clamp((p * 4 - i) / 0.7)));
+        });
+        fillRound(1380, 1030, 1080, 190, 56, "#fff", C.border, alphaFor(time, 8));
+        text("Built on Monad", 1920, 1150, 78, C.primaryStrong, 700, "center", alphaFor(time, 8));
+      }
+
+      function sceneTen(time) {
+        const p = sceneProgress(time, 9);
+        mesh(time, 1.15);
+        logo(1760, 520, 320, C.primary, alphaFor(time, 9));
+        text("Distro", 1920, 1035, 164, C.ink, 730, "center", alphaFor(time, 9));
+        text("The Infrastructure Behind Modern Onchain Distribution.", 1920, 1165, 56, C.ink, 610, "center", alphaFor(time, 9));
+        fillRound(1508, 1308, 824, 104, 28, C.primary, null, alphaFor(time, 9) * ease(p));
+        text("Start distributing smarter.", 1920, 1375, 38, "#fff", 660, "center", alphaFor(time, 9) * ease(p));
+      }
+
+      function drawFrame(time) {
+        mesh(time, 1);
+        if (time < sceneTimes[1]) sceneOne(time);
+        else if (time < sceneTimes[2]) sceneTwo(time);
+        else if (time < sceneTimes[3]) sceneThree(time);
+        else if (time < sceneTimes[4]) sceneFour(time);
+        else if (time < sceneTimes[5]) sceneFive(time);
+        else if (time < sceneTimes[6]) sceneSix(time);
+        else if (time < sceneTimes[7]) sceneSeven(time);
+        else if (time < sceneTimes[8]) sceneEight(time);
+        else if (time < sceneTimes[9]) sceneNine(time);
+        else sceneTen(time);
+
+        const progress = clamp(time / DURATION);
+        fillRound(1260, 2036, 1320, 12, 6, "rgba(109,94,247,0.14)", null, 0.7);
+        fillRound(1260, 2036, 1320 * progress, 12, 6, C.primary, null, 0.72);
+      }
+
+      function applyCanvasTransform() {
+        const sx = canvas.width / W;
+        const sy = canvas.height / H;
+        const scale = Math.max(sx, sy);
+        const x = (canvas.width - W * scale) / 2;
+        const y = (canvas.height - H * scale) / 2;
+        ctx.setTransform(scale, 0, 0, scale, x, y);
+      }
+
+      function currentTime() {
+        if (!isPlaying) return pausedAt;
+        return (performance.now() - startedAt) / 1000;
+      }
+
+      function tick() {
+        const t = currentTime();
+        drawFrame(Math.min(t, DURATION));
+        if (isPlaying && t >= DURATION) {
+          isPlaying = false;
+          pausedAt = DURATION;
+          playButton.textContent = "Play";
+          if (audio) audio.stop();
+        }
+        requestAnimationFrame(tick);
+      }
+
+      function ensureAudio() {
+        if (audio) return audio;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const ac = new AudioContext();
+        const dest = ac.createMediaStreamDestination();
+        const master = ac.createGain();
+        master.gain.value = 0.14;
+        master.connect(ac.destination);
+        master.connect(dest);
+        const notes = [146.83, 220, 277.18, 329.63];
+        const oscillators = notes.map((freq, i) => {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = i % 2 ? "triangle" : "sine";
+          osc.frequency.value = freq;
+          gain.gain.value = 0.03;
+          osc.connect(gain).connect(master);
+          osc.start();
+          return { osc, gain };
+        });
+        return (audio = {
+          stream: dest.stream,
+          ac,
+          start() {
+            ac.resume();
+            oscillators.forEach(({ gain }, i) => gain.gain.setTargetAtTime(0.026 + i * 0.003, ac.currentTime, 0.12));
+            const now = ac.currentTime;
+            for (let s = 1; s < sceneTimes.length - 1; s++) {
+              const t = now + sceneTimes[s];
+              const osc = ac.createOscillator();
+              const g = ac.createGain();
+              osc.type = "sine";
+              osc.frequency.setValueAtTime(520 + s * 18, t);
+              g.gain.setValueAtTime(0.0001, t);
+              g.gain.exponentialRampToValueAtTime(0.09, t + 0.04);
+              g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+              osc.connect(g).connect(master);
+              osc.start(t);
+              osc.stop(t + 0.5);
+            }
+          },
+          stop() {
+            oscillators.forEach(({ gain }) => gain.gain.setTargetAtTime(0, ac.currentTime, 0.08));
+          },
+        });
+      }
+
+      function play() {
+        ensureAudio().start();
+        if (pausedAt >= DURATION) pausedAt = 0;
+        startedAt = performance.now() - pausedAt * 1000;
+        isPlaying = true;
+        playButton.textContent = "Pause";
+      }
+
+      function pause() {
+        pausedAt = currentTime();
+        isPlaying = false;
+        playButton.textContent = "Play";
+      }
+
+      playButton.addEventListener("click", () => (isPlaying ? pause() : play()));
+      restartButton.addEventListener("click", () => {
+        pausedAt = 0;
+        startedAt = performance.now();
+        drawFrame(0);
+        if (!isPlaying) play();
+      });
+      quality.addEventListener("change", () => {
+        const [w, h] = quality.value.split("x").map(Number);
+        canvas.width = w;
+        canvas.height = h;
+        applyCanvasTransform();
+        drawFrame(currentTime());
+      });
+      window.addEventListener("keydown", (event) => {
+        if (event.code === "Space") {
+          event.preventDefault();
+          isPlaying ? pause() : play();
+        }
+      });
+
+      recordButton.addEventListener("click", async () => {
+        if (recorder && recorder.state === "recording") {
+          recorder.stop();
+          return;
+        }
+        quality.value = "3840x2160";
+        quality.dispatchEvent(new Event("change"));
+        const canvasStream = canvas.captureStream(FPS);
+        const audioStream = ensureAudio().stream;
+        const stream = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+        chunks = [];
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+          ? "video/webm;codecs=vp9,opus"
+          : "video/webm";
+        recorder = new MediaRecorder(stream, {
+          mimeType,
+          videoBitsPerSecond: 42000000,
+          audioBitsPerSecond: 160000,
+        });
+        recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "distro-launch-trailer-4k-60fps.webm";
+          a.click();
+          URL.revokeObjectURL(url);
+          statusText.textContent = "Recording complete: distro-launch-trailer-4k-60fps.webm";
+          recordButton.textContent = "Record WebM";
+        };
+        pausedAt = 0;
+        startedAt = performance.now();
+        isPlaying = true;
+        ensureAudio().start();
+        recorder.start(1000);
+        recordButton.textContent = "Stop recording";
+        statusText.textContent = "Recording full 4K trailer...";
+        setTimeout(() => {
+          if (recorder?.state === "recording") recorder.stop();
+          pause();
+        }, (DURATION + 0.5) * 1000);
+      });
+
+      applyCanvasTransform();
+      drawFrame(0);
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
