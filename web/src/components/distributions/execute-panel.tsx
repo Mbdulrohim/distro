@@ -22,36 +22,76 @@ import type { TokenSelection } from "@/lib/tokens/types";
  * the run — the chain is the source of truth and the endpoint is idempotent, so
  * a retry can always reconcile. */
 async function persistBatch(distributionId: string, r: BatchResult): Promise<void> {
-  try {
-    console.log(
-      `[ExecutePanel] Persisting batch ${r.batchIndex} to /api/distributions/${distributionId}/results`,
-    );
-    const response = await fetch(`/api/distributions/${distributionId}/results`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({
+  const maxRetries = 5;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const payload = {
         batchIndex: r.batchIndex,
         txHash: r.txHash,
-      }),
-    });
+      };
+      console.log(
+        `[ExecutePanel] Persisting batch ${r.batchIndex} (attempt ${attempt + 1}/${maxRetries}) to /api/distributions/${distributionId}/results`,
+        { payload, txHashLength: r.txHash.length, isValidHex: /^0x[0-9a-fA-F]+$/.test(r.txHash) },
+      );
+      const response = await fetch(`/api/distributions/${distributionId}/results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(
-        `[ExecutePanel] persistBatch failed with status ${response.status}: ${errorBody}`,
-      );
-      throw new Error(
-        `Could not persist verified batch results (${response.status}): ${errorBody.slice(0, 100)}`,
-      );
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(
+          `[ExecutePanel] persistBatch failed with status ${response.status}: ${errorBody}`,
+        );
+
+        // 400 (validation/parsing) usually means "events not found" due to RPC lag
+        // 409 (conflict) means the batch already exists, which is fine
+        // 401/403 are auth issues that won't retry
+        if (response.status === 409) {
+          console.log(`[ExecutePanel] Batch already recorded (409), treating as success`);
+          return;
+        }
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(`Authentication error: ${errorBody}`);
+        }
+
+        // For 400s and 5xx errors, wait before retrying (RPC lag)
+        if (attempt < maxRetries - 1) {
+          const delayMs = 1000 * Math.pow(2, attempt); // exponential backoff: 1s, 2s, 4s, 8s
+          console.log(
+            `[ExecutePanel] Retrying in ${delayMs}ms (RPC may not have indexed events yet)`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        lastError = new Error(
+          `Could not persist verified batch results (${response.status}): ${errorBody.slice(0, 100)}`,
+        );
+        break;
+      }
+
+      console.log(`[ExecutePanel] Batch ${r.batchIndex} persisted successfully`);
+      return;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (attempt < maxRetries - 1) {
+        const delayMs = 1000 * Math.pow(2, attempt);
+        console.log(`[ExecutePanel] Retrying in ${delayMs}ms after error:`, lastError.message);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
-
-    console.log(`[ExecutePanel] Batch ${r.batchIndex} persisted successfully`);
-  } catch (e) {
-    console.error("[ExecutePanel] Failed to persist batch results; chain state is unaffected", e);
-    // Do NOT re-throw — the transaction is already on chain, so the money has moved.
-    // This endpoint is idempotent, so a retry can always reconcile later.
   }
+
+  // After all retries, log but don't fail — transaction is on-chain already
+  console.error(
+    "[ExecutePanel] Failed to persist batch results after 5 retries; chain state is unaffected",
+    lastError,
+  );
 }
 
 /**

@@ -115,7 +115,9 @@ export async function* executeNativeDistribution(
         logs: receipt.logs,
         eventName: ["Paid", "PaymentFailed"],
       });
+      console.log(`[MultisendNative] Parsed ${logs.length} events from receipt:`, logs);
     } catch (error) {
+      console.error(`[MultisendNative] parseEventLogs failed:`, error);
       throw new Error(
         `Could not parse transaction receipt: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -129,6 +131,9 @@ export async function* executeNativeDistribution(
     }));
 
     const paid = payments.filter((p) => p.status === "paid");
+    console.log(
+      `[MultisendNative] Results: ${paid.length} paid, ${payments.length - paid.length} failed`,
+    );
 
     const result: BatchResult = {
       batchIndex: batch.index,

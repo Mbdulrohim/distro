@@ -209,7 +209,9 @@ export async function* executeDistribution(
         logs: receipt.logs,
         eventName: ["Paid", "PaymentFailed"],
       });
+      console.log(`[Multisend] Parsed ${logs.length} events from receipt:`, logs);
     } catch (error) {
+      console.error(`[Multisend] parseEventLogs failed:`, error);
       throw new Error(
         `Could not parse transaction receipt: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -223,6 +225,9 @@ export async function* executeDistribution(
     }));
 
     const paid = payments.filter((p) => p.status === "paid");
+    console.log(
+      `[Multisend] Results: ${paid.length} paid, ${payments.length - paid.length} failed`,
+    );
 
     const result: BatchResult = {
       batchIndex: batch.index,
