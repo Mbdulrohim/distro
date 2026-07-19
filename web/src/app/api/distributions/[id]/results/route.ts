@@ -6,7 +6,10 @@ import { verifySessionToken } from "@/lib/auth/session";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import { findUserId } from "@/lib/db/users";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { verifyDistributionReceipt } from "@/lib/distributions/verify-receipt";
+import {
+  verifyDistributionReceipt,
+  type VerifiedPayment,
+} from "@/lib/distributions/verify-receipt";
 
 /**
  * Record the outcome of an executed batch.
@@ -27,6 +30,78 @@ const resultSchema = z.object({
   batchIndex: z.number().int().min(0),
   txHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "Not a transaction hash"),
 });
+
+type ExpectedRecipient = {
+  id: string;
+  index_in_batch: number;
+  address: string;
+  amount: string;
+};
+
+type MatchedPayment = {
+  payment: VerifiedPayment;
+  row: ExpectedRecipient;
+};
+
+function shortAddress(address: string): string {
+  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+}
+
+function mismatchPayload(expected: ExpectedRecipient[], payments: VerifiedPayment[]) {
+  return {
+    error: "Receipt payment does not match committed recipients.",
+    expected: expected.map((row) => ({
+      index: row.index_in_batch,
+      address: shortAddress(row.address),
+      amount: row.amount,
+    })),
+    receipt: payments.map((payment) => ({
+      index: payment.index,
+      address: shortAddress(payment.recipient),
+      amount: payment.amount,
+      status: payment.status,
+    })),
+  };
+}
+
+/**
+ * Primary mapping is the contract event index. If a legacy/browser flow sent
+ * the right recipients but the saved row positions drifted, fall back to an
+ * exact address+amount match. That still refuses to mark someone paid unless
+ * the mined receipt proves that same recipient and amount was included.
+ */
+function matchPaymentsToRows(
+  expected: ExpectedRecipient[],
+  payments: VerifiedPayment[],
+): MatchedPayment[] | null {
+  const byIndex = payments.map((payment) => {
+    const row = expected.find((candidate) => candidate.index_in_batch === payment.index);
+    if (!row) return null;
+    return { payment, row };
+  });
+
+  if (byIndex.every((match): match is MatchedPayment => match !== null)) {
+    const indexMatched = byIndex.every(({ payment, row }) => {
+      return getAddress(row.address) === payment.recipient && row.amount === payment.amount;
+    });
+    if (indexMatched) return byIndex;
+  }
+
+  const used = new Set<string>();
+  const byContent: MatchedPayment[] = [];
+  for (const payment of payments) {
+    const row = expected.find((candidate) => {
+      if (used.has(candidate.id)) return false;
+      return (
+        getAddress(candidate.address) === payment.recipient && candidate.amount === payment.amount
+      );
+    });
+    if (!row) return null;
+    used.add(row.id);
+    byContent.push({ payment, row });
+  }
+  return byContent;
+}
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -124,14 +199,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       { status: 409 },
     );
   }
-  for (const payment of verified.payments) {
-    const row = expected.find((candidate) => candidate.index_in_batch === payment.index);
-    if (!row || getAddress(row.address) !== payment.recipient || row.amount !== payment.amount) {
-      return NextResponse.json(
-        { error: "Receipt payment does not match committed recipients." },
-        { status: 409 },
-      );
-    }
+  const matched = matchPaymentsToRows(expected, verified.payments);
+  if (!matched) {
+    return NextResponse.json(mismatchPayload(expected, verified.payments), { status: 409 });
   }
 
   const { data: prior } = await supabase
@@ -178,9 +248,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   // Update each recipient by POSITION. Matching on address would corrupt a
   // distribution that intentionally pays one address twice.
-  for (const p of verified.payments) {
+  for (const { payment: p, row } of matched) {
     console.log(
-      `[/api/distributions/[id]/results] Updating recipient at index ${p.index} with status ${p.status}`,
+      `[/api/distributions/[id]/results] Updating recipient row ${row.id} with status ${p.status}`,
     );
     const { error } = await supabase
       .from("recipients")
@@ -195,16 +265,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       })
       .eq("distribution_id", id)
       .eq("batch_index", batchIndex)
-      .eq("index_in_batch", p.index);
+      .eq("id", row.id);
 
     if (error) {
-      console.error("Failed to update recipient", { batchIndex, index: p.index, error });
+      console.error("Failed to update recipient", { batchIndex, rowId: row.id, error });
       return NextResponse.json({ error: "Could not record results." }, { status: 500 });
     }
 
-    console.log(
-      `[/api/distributions/[id]/results] Successfully updated recipient at index ${p.index}`,
-    );
+    console.log(`[/api/distributions/[id]/results] Successfully updated recipient ${row.id}`);
   }
 
   // Derive the distribution's status from what actually landed, counted in the
