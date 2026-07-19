@@ -76,6 +76,18 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   let verified;
   try {
+    console.log(`[/api/distributions/[id]/results] Verifying receipt:`, {
+      chainId: dist.chain_id,
+      txHash,
+      contract,
+      kind:
+        dist.kind === "scheduled"
+          ? "scheduled"
+          : dist.token_address === "0x0000000000000000000000000000000000000000"
+            ? "immediate-native"
+            : "immediate-erc20",
+      batchIndex,
+    });
     verified = await verifyDistributionReceipt({
       chainId: dist.chain_id,
       txHash: txHash as `0x${string}`,
@@ -88,7 +100,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
             : "immediate-erc20",
       batchIndex,
     });
+    console.log(`[/api/distributions/[id]/results] Receipt verified successfully:`, verified);
   } catch (error) {
+    console.error(
+      `[/api/distributions/[id]/results] verifyDistributionReceipt failed:`,
+      error instanceof Error ? error.message : String(error),
+    );
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not verify transaction receipt." },
       { status: 400 },
