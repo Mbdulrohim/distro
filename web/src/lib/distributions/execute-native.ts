@@ -59,14 +59,21 @@ export async function* executeNativeDistribution(
 
     yield { type: "batch:signing", batchIndex: batch.index, total: batches.length };
 
-    const txHash = await writeContract(config, {
-      chainId,
-      address: multisendNative,
-      abi: multisendNativeAbi,
-      functionName: "distribute",
-      args: [batch.payload],
-      value: batchTotal,
-    });
+    let txHash;
+    try {
+      txHash = await writeContract(config, {
+        chainId,
+        address: multisendNative,
+        abi: multisendNativeAbi,
+        functionName: "distribute",
+        args: [batch.payload],
+        value: batchTotal,
+      });
+    } catch (error) {
+      throw new Error(
+        `Transaction rejected or failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     yield {
       type: "batch:submitted",
@@ -75,13 +82,27 @@ export async function* executeNativeDistribution(
       txHash,
     };
 
-    const receipt = await waitForTransactionReceipt(config, { chainId, hash: txHash });
+    let receipt;
+    try {
+      receipt = await waitForTransactionReceipt(config, { chainId, hash: txHash });
+    } catch (error) {
+      throw new Error(
+        `Transaction confirmation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
-    const logs = parseEventLogs({
-      abi: multisendNativeAbi,
-      logs: receipt.logs,
-      eventName: ["Paid", "PaymentFailed"],
-    });
+    let logs;
+    try {
+      logs = parseEventLogs({
+        abi: multisendNativeAbi,
+        logs: receipt.logs,
+        eventName: ["Paid", "PaymentFailed"],
+      });
+    } catch (error) {
+      throw new Error(
+        `Could not parse transaction receipt: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     const payments: PaymentResult[] = logs.map((log) => ({
       recipient: log.args.recipient as Address,

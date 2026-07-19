@@ -161,7 +161,9 @@ export function ExecutePanel({
     } catch (e) {
       // A wallet rejection is a choice, not a fault — say so calmly, and say
       // exactly who has and hasn't been paid.
-      setError(e instanceof Error ? e.message : "Execution failed.");
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      console.error("Distribution execution failed:", errorMessage, e);
+      setError(errorMessage);
       setPhase("error");
     }
   }
